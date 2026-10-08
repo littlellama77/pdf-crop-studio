@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CropPDF Studio — Snip, Trim & Redact PDFs in Your Browser</title>
+  <meta name="description" content="Ultra-fast, private, and precise PDF Cropper. Snip visual elements to PNG/JPG, trim document page margins losslessly, or cut out unwanted content.">
+  
+  <!-- Google Fonts: Outfit & Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Header Bar -->
+  <header class="app-header">
+    <div class="header-left">
+      <div class="logo">
+        <div class="logo-icon">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M6 2v14a2 2 0 0 0 2 2h14"></path>
+            <path d="M18 22V8a2 2 0 0 0-2-2H2"></path>
+          </svg>
+        </div>
+        <div class="logo-text">
+          <span class="brand-name">CropPDF</span>
+          <span class="brand-badge">STUDIO</span>
+        </div>
+      </div>
+
+      <nav class="nav-modes" id="navModes">
+        <button class="nav-mode-btn active" id="navBtnPdfStudio" data-mode="pdf" type="button">
+          <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2" fill="none"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          <span>PDF Studio</span>
+        </button>
+        <button class="nav-mode-btn" id="navBtnCvCompiler" data-mode="cv" type="button">
+          <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2" fill="none"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M7 7h10M7 11h10M7 15h5"/></svg>
+          <span>CV Screenshot Compiler</span>
+          <span class="badge-sparkle">NEW ✨</span>
+        </button>
+      </nav>
+
+      <div class="doc-meta" id="docMeta" style="display: none;">
+        <span class="file-name" id="fileNameDisplay" title="Document name">document.pdf</span>
+        <span class="file-badge" id="filePagesBadge">1 page</span>
+      </div>
+    </div>
+
+    <!-- Center Navigation & Page Controls -->
+    <div class="header-center" id="headerPageNav" style="display: none;">
+      <div class="page-controls">
+        <button id="btnPrevPage" class="icon-btn" title="Previous Page (Left Arrow)" disabled>
+          <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><path d="m15 18-6-6 6-6"/></svg>
+        </button>
+        <div class="page-indicator">
+          <span>Page</span>
+          <input type="number" id="pageNumberInput" value="1" min="1" max="1" aria-label="Page number">
+          <span class="page-total">of <span id="pageTotalDisplay">1</span></span>
+        </div>
+        <button id="btnNextPage" class="icon-btn" title="Next Page (Right Arrow)" disabled>
+          <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><path d="m9 18 6-6-6-6"/></svg>
+        </button>
+      </div>
+
+      <div class="separator-v"></div>
+
+      <!-- Zoom Controls -->
+      <div class="zoom-controls">
+        <button id="btnZoomOut" class="icon-btn" title="Zoom Out (-)">
+          <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><path d="M5 12h14"/></svg>
+        </button>
+        <span id="zoomDisplay" class="zoom-label" title="Click to reset zoom">100%</span>
+        <button id="btnZoomIn" class="icon-btn" title="Zoom In (+)">
+          <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
+        <button id="btnFitWidth" class="icon-btn" title="Fit to Width">
+          <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><path d="M21 9v6M3 9v6M7 12h10M10 9l-3 3 3 3M14 9l3 3-3 3"/></svg>
+        </button>
+        <button id="btnFitPage" class="icon-btn" title="Fit to Window">
+          <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="m3 3 6 6M21 3l-6 6M3 21l6-6M21 21l-6-6"/></svg>
+        </button>
+        <button id="btnRotateCW" class="icon-btn" title="Rotate Page 90° Clockwise">
+          <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Header Right Actions -->
+    <div class="header-right">
+      <button id="btnTrySample" class="btn btn-secondary" title="Load sample document to test">
+        <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        <span>Sample PDF</span>
+      </button>
+
+      <label for="pdfFileInput" class="btn btn-primary" id="btnUploadLabel">
+        <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <span id="btnUploadText">Open PDF</span>
+        <input type="file" id="pdfFileInput" accept="application/pdf" style="display: none;">
+      </label>
+
+      <button id="btnHelp" class="icon-btn help-btn" title="Shortcuts & Tips">
+        <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Studio Workspace (PDF Cropper) -->
+  <main class="studio-layout" id="pdfStudioLayout">
+    <!-- Left Sidebar: Pages Thumbnail Strip -->
+    <aside class="sidebar-thumbnails" id="sidebarThumbnails" style="display: none;">
+      <div class="sidebar-header">
+        <span class="sidebar-title">Pages</span>
+        <button id="btnCollapseSidebar" class="icon-btn icon-btn-sm" title="Collapse pages">
+          <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><path d="m11 17-5-5 5-5M18 17l-5-5 5-5"/></svg>
+        </button>
+      </div>
+      <div class="thumbnails-container" id="thumbnailsContainer">
+        <!-- Rendered dynamically -->
+      </div>
+    </aside>
+
+    <!-- Center Stage: Canvas Viewport -->
+    <section class="stage-viewport" id="stageViewport">
+      <!-- Empty State / Dropzone -->
+      <div class="empty-dropzone" id="emptyDropzone">
+        <div class="dropzone-card">
+          <div class="glow-orb"></div>
+          <div class="dropzone-icon">
+            <svg viewBox="0 0 24 24" width="56" height="56" stroke="currentColor" stroke-width="1.5" fill="none">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
+              <path d="M12 18v-6"></path>
+              <path d="m9 15 3-3 3 3"></path>
+            </svg>
+          </div>
+          <h2>Drop your PDF file here</h2>
+          <p class="subtitle">Snip exact regions, trim white margins losslessly, or cut out unwanted content</p>
+
+          <div class="dropzone-actions">
+            <label for="pdfFileInputDrop" class="btn btn-primary btn-lg">
+              <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              <span>Select PDF File</span>
+              <input type="file" id="pdfFileInputDrop" accept="application/pdf" style="display: none;">
+            </label>
+            <button id="btnTrySampleDrop" class="btn btn-secondary btn-lg">
+              <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              <span>Try with Sample PDF</span>
+            </button>
+          </div>
+
+          <div class="feature-pills">
+            <div class="pill">
+              <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+              <span>100% Private Client-Side</span>
+            </div>
+            <div class="pill">
+              <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><polyline points="20 6 9 17 4 12"/></svg>
+              <span>Lossless Vector Trimming</span>
+            </div>
+            <div class="pill">
+              <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M7 12h10"/></svg>
+              <span>Instant Clipboard Copy</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Canvas Container (Active Document) -->
+      <div class="canvas-workspace" id="canvasWorkspace" style="display: none;">
+        <!-- Canvas Stage that gets scaled and centered -->
+        <div class="canvas-stage" id="canvasStage">
+          <!-- Main PDF Page Render Canvas -->
+          <canvas id="pdfCanvas" class="pdf-canvas"></canvas>
+          
+          <!-- Interactive Crop Selection Overlay Layer -->
+          <div id="cropOverlay" class="crop-overlay">
+            <!-- Dim backdrop masks around the crop box -->
+            <div class="dim-mask mask-top" id="maskTop"></div>
+            <div class="dim-mask mask-bottom" id="maskBottom"></div>
+            <div class="dim-mask mask-left" id="maskLeft"></div>
+            <div class="dim-mask mask-right" id="maskRight"></div>
+
+            <!-- The Draggable & Resizable Selection Box -->
+            <div id="cropBox" class="crop-box" style="display: none;">
+              <!-- Grid lines for rule of thirds -->
+              <div class="crop-grid-h h1"></div>
+              <div class="crop-grid-h h2"></div>
+              <div class="crop-grid-v v1"></div>
+              <div class="crop-grid-v v2"></div>
+
+              <!-- Dimension pill tag -->
+              <div id="cropBadge" class="crop-badge">0 × 0 px</div>
+
+              <!-- 8 Resize Handles -->
+              <div class="handle handle-nw" data-handle="nw"></div>
+              <div class="handle handle-n" data-handle="n"></div>
+              <div class="handle handle-ne" data-handle="ne"></div>
+              <div class="handle handle-e" data-handle="e"></div>
+              <div class="handle handle-se" data-handle="se"></div>
+              <div class="handle handle-s" data-handle="s"></div>
+              <div class="handle handle-sw" data-handle="sw"></div>
+              <div class="handle handle-w" data-handle="w"></div>
+            </div>
+
+            <!-- Multiple Redaction / Cut-Out Overlays (Erase Mode) -->
+            <div id="redactOverlaysContainer" class="redact-overlays-container"></div>
+          </div>
+        </div>
+
+        <!-- Floating Quick Canvas Tool Bar -->
+        <div class="floating-canvas-bar" id="floatingCanvasBar">
+          <button id="btnAutoDetect" class="btn-tool" title="Auto-detect content boundaries (snaps to text & graphics)">
+            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/></svg>
+            <span>Magic Auto-Crop</span>
+          </button>
+          <button id="btnSelectAll" class="btn-tool" title="Select entire page">
+            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><rect width="18" height="18" x="3" y="3" rx="2"/></svg>
+            <span>Select All</span>
+          </button>
+          <button id="btnCenterCrop" class="btn-tool" title="Center selection">
+            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><circle cx="12" cy="12" r="10"/><line x1="22" y1="12" x2="18" y2="12"/><line x1="6" y1="12" x2="2" y2="12"/><line x1="12" y1="6" x2="12" y2="2"/><line x1="12" y1="22" x2="12" y2="18"/></svg>
+            <span>Center</span>
+          </button>
+          <button id="btnClearCrop" class="btn-tool btn-tool-danger" title="Clear selection (Delete key)">
+            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            <span>Clear</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Right Inspector / Actions Panel -->
+    <aside class="panel-inspector" id="panelInspector" style="display: none;">
+      <!-- Mode Tabs -->
+      <div class="tabs-header">
+        <button class="tab-btn active" data-tab="tabSnip" id="tabBtnSnip" title="Snip a region as an image or snippet PDF">
+          <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2" fill="none"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg>
+          <span>Snip & Extract</span>
+        </button>
+        <button class="tab-btn" data-tab="tabTrim" id="tabBtnTrim" title="Trim PDF page margins losslessly">
+          <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2" fill="none"><path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/></svg>
+          <span>Trim Document</span>
+        </button>
+        <button class="tab-btn" data-tab="tabRedact" id="tabBtnRedact" title="Cut out or erase unwanted content from page">
+          <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2" fill="none"><path d="M20 20H7L3 16C2 15 2 13 3 12L13 2L22 11L17 16"/><path d="M18 12L7 12"/></svg>
+          <span>Cut Out / Erase</span>
+        </button>
+      </div>
+
+      <div class="tab-content-area">
+        <!-- TAB 1: SNIP & EXTRACT -->
+        <div class="tab-pane active" id="tabSnip">
+          <!-- Live Snippet Preview Box -->
+          <div class="inspector-card">
+            <div class="card-header">
+              <span class="card-title">Selection Preview</span>
+              <span id="snipPixelStats" class="badge-accent">0 × 0 px</span>
+            </div>
+            
+            <div class="preview-stage" id="previewStage">
+              <canvas id="previewCanvas" class="preview-canvas"></canvas>
+              <div id="noSelectionNotice" class="no-selection-notice">
+                <svg viewBox="0 0 24 24" width="28" height="28" stroke="currentColor" stroke-width="1.5" fill="none"><path d="M3 3l18 18M10.5 10.5l-6.5 6.5M14 6l6 6"/></svg>
+                <span>Draw or click on the page to crop</span>
+              </div>
+            </div>
+
+            <div class="metrics-grid">
+              <div class="metric-item">
+                <span class="metric-label">Width</span>
+                <span class="metric-value" id="valMetricW">0 px</span>
+              </div>
+              <div class="metric-item">
+                <span class="metric-label">Height</span>
+                <span class="metric-value" id="valMetricH">0 px</span>
+              </div>
+              <div class="metric-item">
+                <span class="metric-label">Dimensions</span>
+                <span class="metric-value" id="valMetricMM">0 × 0 mm</span>
+              </div>
+              <div class="metric-item">
+                <span class="metric-label">Aspect Ratio</span>
+                <span class="metric-value" id="valMetricRatio">Free</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Aspect Ratio Presets -->
+          <div class="inspector-card">
+            <span class="card-title">Aspect Ratio</span>
+            <div class="ratio-chips">
+              <button class="chip active" data-ratio="free">Free</button>
+              <button class="chip" data-ratio="1:1">1:1 Square</button>
+              <button class="chip" data-ratio="4:3">4:3 Standard</button>
+              <button class="chip" data-ratio="16:9">16:9 Widescreen</button>
+              <button class="chip" data-ratio="1:1.414">A4 Page</button>
+              <button class="chip" data-ratio="8.5:11">US Letter</button>
+              <button class="chip" data-ratio="4:6">4×6" Label</button>
+            </div>
+          </div>
+
+          <!-- Export Quality Multiplier -->
+          <div class="inspector-card">
+            <div class="flex-between">
+              <span class="card-title">Render Clarity</span>
+              <span class="badge-dim" id="clarityLabel">2x (High Res)</span>
+            </div>
+            <div class="quality-selector">
+              <button class="quality-btn" data-scale="1">1x (Standard)</button>
+              <button class="quality-btn active" data-scale="2">2x (Retina)</button>
+              <button class="quality-btn" data-scale="3">3x (Ultra Sharp)</button>
+            </div>
+            <p class="field-hint">Higher clarity renders text & line art with razor-sharp vector crispness.</p>
+          </div>
+
+          <!-- Export Actions -->
+          <div class="inspector-card export-actions-card">
+            <button id="btnCopyClipboard" class="btn btn-emerald btn-block" disabled>
+              <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+              <span>Copy Image to Clipboard</span>
+            </button>
+
+            <div class="btn-row">
+              <button id="btnDownloadPNG" class="btn btn-secondary flex-1" disabled>
+                <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2" fill="none"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                <span>Save PNG</span>
+              </button>
+              <button id="btnDownloadJPG" class="btn btn-secondary flex-1" disabled>
+                <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2" fill="none"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                <span>Save JPG</span>
+              </button>
+            </div>
+
+            <button id="btnDownloadPDFSnippet" class="btn btn-secondary btn-block" disabled>
+              <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2" fill="none"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              <span>Download Vector PDF Snippet</span>
+            </button>
+
+            <button id="btnSendCropToCV" class="btn btn-secondary btn-block" disabled style="margin-top: 6px;">
+              <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2" fill="none"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M7 7h10M7 11h10M7 15h5"/></svg>
+              <span>Send Crop to CV Compiler</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- TAB 2: TRIM DOCUMENT MARGINS -->
+        <div class="tab-pane" id="tabTrim">
+          <div class="inspector-card">
+            <span class="card-title">Apply Trim To</span>
+            <div class="radio-group">
+              <label class="radio-item">
+                <input type="radio" name="trimScope" value="current" checked>
+                <span>Current Page (Page <span class="current-page-num">1</span>)</span>
+              </label>
+              <label class="radio-item">
+                <input type="radio" name="trimScope" value="all">
+                <span>All Pages in Document</span>
+              </label>
+              <label class="radio-item">
+                <input type="radio" name="trimScope" value="custom">
+                <span>Custom Page Range</span>
+              </label>
+            </div>
+            <div id="customRangeInputWrap" style="display: none; margin-top: 10px;">
+              <input type="text" id="customRangeInput" class="input-text" placeholder="e.g. 1-3, 5">
+              <span class="field-hint">Comma separated page numbers or ranges</span>
+            </div>
+          </div>
+
+          <div class="inspector-card">
+            <div class="flex-between">
+              <span class="card-title">Margin Padding</span>
+              <span id="marginPaddingVal" class="badge-dim">0 mm</span>
+            </div>
+            <input type="range" id="marginPaddingSlider" min="0" max="25" value="0" step="1" class="slider-range">
+            <p class="field-hint">Adds breathing room around your crop area before trimming.</p>
+          </div>
+
+          <div class="inspector-card notice-box">
+            <div class="notice-icon">
+              <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            </div>
+            <div class="notice-text">
+              <strong>Lossless Vector Trimming</strong>
+              <p>Adjusts PDF MediaBox & CropBox directly. Searchable text, vector lines, and hyperlinks are 100% preserved.</p>
+            </div>
+          </div>
+
+          <div class="inspector-card">
+            <button id="btnExportTrimmedPDF" class="btn btn-primary btn-block" disabled>
+              <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>Download Trimmed PDF</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- TAB 3: CUT OUT / ERASE / REDACT -->
+        <div class="tab-pane" id="tabRedact">
+          <div class="inspector-card">
+            <span class="card-title">Cut-Out Mode</span>
+            <p class="field-hint" style="margin-bottom: 12px;">Draw a box over unwanted headers, watermarks, stamps, or sensitive text to permanently cut them out of the PDF.</p>
+            
+            <div class="color-options">
+              <label class="color-choice">
+                <input type="radio" name="redactColor" value="#ffffff" checked>
+                <span class="color-swatch swatch-white"></span>
+                <span>Whiteout (Erase)</span>
+              </label>
+              <label class="color-choice">
+                <input type="radio" name="redactColor" value="#000000">
+                <span class="color-swatch swatch-black"></span>
+                <span>Black (Redact)</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="inspector-card">
+            <div class="flex-between">
+              <span class="card-title">Cut-Out Regions</span>
+              <button id="btnAddCurrentAsCutout" class="btn btn-secondary btn-sm" disabled>
+                <span>+ Add Selection</span>
+              </button>
+            </div>
+            <div id="redactListContainer" class="redact-list">
+              <div class="empty-hint" id="noRedactHint">No cut-out boxes added yet. Draw a crop box and click "+ Add Selection".</div>
+            </div>
+          </div>
+
+          <div class="inspector-card">
+            <button id="btnExportCleanedPDF" class="btn btn-primary btn-block" disabled>
+              <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>Download Cleaned PDF</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <!-- CV Screenshot Compiler Workspace -->
+  <main class="cv-layout" id="cvStudioLayout" style="display: none;">
+    <!-- Left Column: CV Slices Manager -->
+    <aside class="cv-sidebar-slices" id="cvSidebarSlices">
+      <div class="cv-sidebar-header">
+        <div class="cv-sidebar-title-group">
+          <span class="sidebar-title">CV Slices</span>
+          <span class="badge-accent" id="cvSlicesCountBadge">0 slices</span>
+        </div>
+        <button id="btnClearAllCvSlices" class="icon-btn icon-btn-sm" title="Clear all slices">
+          <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+        </button>
+      </div>
+
+      <!-- Quick Add Actions -->
+      <div class="cv-quick-add-bar">
+        <label for="cvImageFileInput" class="btn btn-primary btn-block btn-add-slice" id="btnCvUploadLabel">
+          <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          <span>+ Upload Screenshots</span>
+          <input type="file" id="cvImageFileInput" accept="image/png,image/jpeg,image/webp,image/bmp" multiple style="display: none;">
+        </label>
+
+        <div class="btn-row" style="margin-top: 8px;">
+          <button id="btnCvScreenCapture" class="btn btn-secondary flex-1" title="Snip a screen or window live">
+            <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+            <span>Snip Screen</span>
+          </button>
+          <button id="btnCvLoadSample" class="btn btn-secondary flex-1" title="Load sample CV slices to test">
+            <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            <span>Sample CV</span>
+          </button>
+        </div>
+
+        <div class="paste-indicator-pill" id="pasteIndicatorPill" title="Paste any screenshot with Ctrl+V">
+          <kbd>Ctrl + V</kbd>
+          <span>Paste screenshot directly</span>
+        </div>
+      </div>
+
+      <!-- Reorderable Slices Container -->
+      <div class="cv-slices-container" id="cvSlicesContainer">
+        <div class="cv-empty-slices" id="cvEmptySlicesHint">
+          <div class="cv-empty-icon">
+            <svg viewBox="0 0 24 24" width="34" height="34" stroke="currentColor" stroke-width="1.5" fill="none">
+              <rect width="18" height="18" x="3" y="3" rx="2"></rect>
+              <path d="M3 9h18M9 21V9"></path>
+            </svg>
+          </div>
+          <h4>No CV Slices Added Yet</h4>
+          <p>Press <kbd>Ctrl+V</kbd> to paste screenshots, upload images, or load sample CV sections.</p>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Center Stage: Live Rendered CV Document -->
+    <section class="cv-stage-viewport" id="cvStageViewport">
+      <!-- Stage Toolbar -->
+      <div class="cv-stage-toolbar">
+        <div class="cv-viewmode-toggle">
+          <button class="cv-toggle-btn active" id="btnViewPaginated" data-view="paginated" title="Standard paginated pages (A4 / Letter)">
+            <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><rect width="14" height="18" x="5" y="3" rx="2"/><line x1="9" y1="7" x2="15" y2="7"/><line x1="9" y1="11" x2="15" y2="11"/></svg>
+            <span>Pages (A4/Letter)</span>
+          </button>
+          <button class="cv-toggle-btn" id="btnViewContinuous" data-view="continuous" title="Single continuous seamless sheet">
+            <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><rect width="16" height="20" x="4" y="2" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="10" x2="16" y2="10"/><line x1="8" y1="14" x2="16" y2="14"/></svg>
+            <span>Continuous Sheet</span>
+          </button>
+        </div>
+
+        <div class="separator-v"></div>
+
+        <div class="cv-zoom-controls">
+          <button id="btnCvZoomOut" class="icon-btn icon-btn-sm" title="Zoom Out (-)">
+            <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><path d="M5 12h14"/></svg>
+          </button>
+          <span id="cvZoomDisplay" class="zoom-label">80%</span>
+          <button id="btnCvZoomIn" class="icon-btn icon-btn-sm" title="Zoom In (+)">
+            <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><path d="M12 5v14M5 12h14"/></svg>
+          </button>
+          <button id="btnCvFitWidth" class="icon-btn icon-btn-sm" title="Fit to Width">
+            <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><path d="M21 9v6M3 9v6M7 12h10M10 9l-3 3 3 3M14 9l3 3-3 3"/></svg>
+          </button>
+          <button id="btnCvFitPage" class="icon-btn icon-btn-sm" title="Fit Page to Screen">
+            <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="m3 3 6 6M21 3l-6 6M3 21l6-6M21 21l-6-6"/></svg>
+          </button>
+        </div>
+
+        <div class="separator-v"></div>
+
+        <div class="cv-page-stat-badge" id="cvPageStatBadge">
+          0 Slices • Ready to Compile
+        </div>
+      </div>
+
+      <!-- Canvas Scrollport -->
+      <div class="cv-canvas-stage-scroll" id="cvCanvasStageScroll">
+        <div class="cv-pages-wrapper" id="cvPagesWrapper">
+          <!-- Rendered paper pages appear here dynamically -->
+          <div class="cv-welcome-card" id="cvWelcomeCard">
+            <div class="glow-orb"></div>
+            <div class="dropzone-icon">
+              <svg viewBox="0 0 24 24" width="56" height="56" stroke="currentColor" stroke-width="1.5" fill="none">
+                <rect width="18" height="18" x="3" y="3" rx="2"></rect>
+                <path d="M7 7h10M7 11h10M7 15h6"></path>
+              </svg>
+            </div>
+            <h2>CV Screenshot Compiler</h2>
+            <p class="subtitle">Compile incomplete screenshot snippets from LinkedIn, Canva, or phone previews into one neat, clean, professional CV document.</p>
+
+            <div class="dropzone-actions">
+              <label for="cvImageFileInputDrop" class="btn btn-primary btn-lg">
+                <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                <span>Upload CV Screenshots</span>
+                <input type="file" id="cvImageFileInputDrop" accept="image/png,image/jpeg,image/webp,image/bmp" multiple style="display: none;">
+              </label>
+              <button id="btnCvLoadSampleDrop" class="btn btn-secondary btn-lg">
+                <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                <span>Try with Sample CV Slices</span>
+              </button>
+            </div>
+
+            <div class="feature-pills">
+              <div class="pill">
+                <kbd>Ctrl+V</kbd>
+                <span>Instant Clipboard Paste</span>
+              </div>
+              <div class="pill">
+                <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                <span>Harmonize White Seams</span>
+              </div>
+              <div class="pill">
+                <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>
+                <span>Standard A4 / Letter PDF</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Right Column: Settings & Export -->
+    <aside class="cv-panel-inspector" id="cvPanelInspector">
+      <div class="inspector-section-header">
+        <span class="card-title">Compilation & Layout</span>
+      </div>
+
+      <!-- Paper Format -->
+      <div class="inspector-card">
+        <span class="card-title">Paper Format</span>
+        <div class="ratio-chips" style="margin-top: 6px;">
+          <button class="chip active cv-format-chip" data-format="a4">A4 (210×297mm)</button>
+          <button class="chip cv-format-chip" data-format="letter">US Letter</button>
+          <button class="chip cv-format-chip" data-format="auto">Auto Fit</button>
+        </div>
+      </div>
+
+      <!-- Margins & Spacing -->
+      <div class="inspector-card">
+        <div class="flex-between">
+          <span class="card-title">Page Margins</span>
+          <span id="cvMarginValDisplay" class="badge-dim">12 mm</span>
+        </div>
+        <input type="range" id="cvMarginSlider" min="0" max="28" value="12" step="2" class="slider-range">
+
+        <div class="flex-between" style="margin-top: 14px;">
+          <span class="card-title">Section Spacing (Gap)</span>
+          <span id="cvGapValDisplay" class="badge-dim">10 px</span>
+        </div>
+        <input type="range" id="cvGapSlider" min="0" max="40" value="10" step="2" class="slider-range">
+        <p class="field-hint">Set to 0 px for seamless stitching or 8-14 px for clean section dividers.</p>
+      </div>
+
+      <!-- Blending & Neatness Filters -->
+      <div class="inspector-card">
+        <span class="card-title">Neatness & Blending Magic</span>
+
+        <label class="toggle-control" style="margin-top: 8px;">
+          <input type="checkbox" id="cvAutoWhiteCheck" checked>
+          <span class="toggle-switch"></span>
+          <span class="toggle-label">Harmonize White Background</span>
+        </label>
+        <p class="field-hint">Clamps off-white or grayish screenshot backgrounds to pure #ffffff so all pieces blend invisibly.</p>
+
+        <div id="cvWhiteThresholdWrap" style="margin-top: 10px;">
+          <div class="flex-between">
+            <span class="metric-label">Whitening Sensitivity</span>
+            <span id="cvWhiteThresholdDisplay" class="badge-dim">Level 2 (Normal)</span>
+          </div>
+          <input type="range" id="cvWhiteThresholdSlider" min="1" max="4" value="2" step="1" class="slider-range">
+        </div>
+
+        <label class="toggle-control" style="margin-top: 12px;">
+          <input type="checkbox" id="cvEnhanceContrastCheck" checked>
+          <span class="toggle-switch"></span>
+          <span class="toggle-label">Enhance Text Sharpness</span>
+        </label>
+        <p class="field-hint">Sharpen text and increase contrast for crisp readability.</p>
+      </div>
+
+      <!-- Export Actions -->
+      <div class="inspector-card export-actions-card">
+        <button id="btnExportCvPDF" class="btn btn-primary btn-block btn-lg" disabled style="box-shadow: 0 4px 16px rgba(99, 102, 241, 0.45);">
+          <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+          <span>Download Compiled CV (PDF)</span>
+        </button>
+
+        <div class="btn-row" style="margin-top: 10px;">
+          <button id="btnExportCvPNG" class="btn btn-secondary flex-1" disabled>
+            <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2" fill="none"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span>Save PNG</span>
+          </button>
+          <button id="btnCopyCvClipboard" class="btn btn-emerald flex-1" disabled>
+            <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2" fill="none"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+            <span>Copy Image</span>
+          </button>
+        </div>
+
+        <button id="btnPrintCv" class="btn btn-secondary btn-block" disabled style="margin-top: 8px;">
+          <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2" fill="none"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect width="12" height="8" x="6" y="14"/></svg>
+          <span>Print Document</span>
+        </button>
+      </div>
+    </aside>
+  </main>
+
+  <!-- Slice Precision Trimmer Modal -->
+  <div class="modal-backdrop" id="cvTrimModal" style="display: none;">
+    <div class="modal-card cv-trim-card">
+      <div class="modal-header">
+        <div>
+          <h3 class="modal-title">Trim Slice Edges</h3>
+          <p class="field-hint" style="margin: 0;">Remove unwanted phone headers, battery bars, browser URL bars, or overlapping lines.</p>
+        </div>
+        <button id="btnCloseCvTrimModal" class="icon-btn">
+          <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="modal-body cv-trim-modal-body">
+        <div class="cv-trim-preview-container" id="cvTrimPreviewContainer">
+          <div class="cv-trim-stage" id="cvTrimStage">
+            <canvas id="cvTrimCanvas"></canvas>
+            <div class="cv-trim-mask cv-trim-mask-top" id="cvTrimMaskTop"></div>
+            <div class="cv-trim-mask cv-trim-mask-bottom" id="cvTrimMaskBottom"></div>
+            <div class="cv-trim-mask cv-trim-mask-left" id="cvTrimMaskLeft"></div>
+            <div class="cv-trim-mask cv-trim-mask-right" id="cvTrimMaskRight"></div>
+          </div>
+        </div>
+
+        <div class="cv-trim-controls">
+          <div class="trim-control-row">
+            <div class="flex-between">
+              <label>Top Trim</label>
+              <span id="valTrimTop" class="badge-dim">0 px</span>
+            </div>
+            <input type="range" id="sliderTrimTop" min="0" max="250" value="0" class="slider-range">
+          </div>
+          <div class="trim-control-row">
+            <div class="flex-between">
+              <label>Bottom Trim</label>
+              <span id="valTrimBottom" class="badge-dim">0 px</span>
+            </div>
+            <input type="range" id="sliderTrimBottom" min="0" max="250" value="0" class="slider-range">
+          </div>
+          <div class="trim-control-row">
+            <div class="flex-between">
+              <label>Left Trim</label>
+              <span id="valTrimLeft" class="badge-dim">0 px</span>
+            </div>
+            <input type="range" id="sliderTrimLeft" min="0" max="250" value="0" class="slider-range">
+          </div>
+          <div class="trim-control-row">
+            <div class="flex-between">
+              <label>Right Trim</label>
+              <span id="valTrimRight" class="badge-dim">0 px</span>
+            </div>
+            <input type="range" id="sliderTrimRight" min="0" max="250" value="0" class="slider-range">
+          </div>
+
+          <div class="btn-row" style="margin-top: 16px;">
+            <button id="btnCvAutoTrimSlice" class="btn btn-secondary flex-1" title="Auto-detect white margins">Auto Trim Blank</button>
+            <button id="btnCvResetTrim" class="btn btn-secondary">Reset</button>
+            <button id="btnCvApplyTrim" class="btn btn-primary flex-1">Apply Trim</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Screen Capture Snipping Modal -->
+  <div class="modal-backdrop" id="cvCaptureModal" style="display: none;">
+    <div class="modal-card cv-capture-card">
+      <div class="modal-header">
+        <div>
+          <h3 class="modal-title">Snip CV Section</h3>
+          <p class="field-hint" style="margin: 0;">Drag a rectangle over the CV section you want to capture, then click "Add Selection".</p>
+        </div>
+        <button id="btnCloseCvCaptureModal" class="icon-btn">
+          <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="modal-body cv-capture-modal-body">
+        <div class="cv-capture-stage" id="cvCaptureStage">
+          <canvas id="cvCaptureCanvas"></canvas>
+          <div class="cv-capture-cropbox" id="cvCaptureCropBox" style="display: none;">
+            <div class="crop-badge" id="cvCaptureCropBadge">0 × 0 px</div>
+          </div>
+        </div>
+        <div class="btn-row" style="margin-top: 14px; justify-content: flex-end;">
+          <button id="btnCancelCvCapture" class="btn btn-secondary">Cancel</button>
+          <button id="btnConfirmCvCapture" class="btn btn-primary" disabled>+ Add Selection to CV</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Keyboard Shortcuts & Help Modal -->
+  <div class="modal-backdrop" id="modalHelp" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title">Keyboard Shortcuts & Guide</h3>
+        <button id="btnCloseHelp" class="icon-btn">
+          <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="shortcuts-list">
+          <div class="shortcut-row">
+            <kbd>Drag on Page</kbd>
+            <span>Draw new crop box</span>
+          </div>
+          <div class="shortcut-row">
+            <kbd>Ctrl + C</kbd>
+            <span>Copy active snippet to clipboard</span>
+          </div>
+          <div class="shortcut-row">
+            <kbd>Delete</kbd> / <kbd>Backspace</kbd>
+            <span>Clear current selection</span>
+          </div>
+          <div class="shortcut-row">
+            <kbd>+</kbd> / <kbd>-</kbd>
+            <span>Zoom In / Zoom Out</span>
+          </div>
+          <div class="shortcut-row">
+            <kbd>←</kbd> / <kbd>→</kbd>
+            <span>Previous / Next Page</span>
+          </div>
+          <div class="shortcut-row">
+            <kbd>Esc</kbd>
+            <span>Deselect / Cancel marquee</span>
+          </div>
+        </div>
+        <div class="guide-tip">
+          <strong>Tip:</strong> Use the <em>"Magic Auto-Crop"</em> button to automatically detect content margins and remove unwanted whitespace around documents in one click!
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toastContainer" class="toast-container"></div>
+
+  <!-- PDF.js & pdf-lib (Local Vendor Scripts) -->
+  <script src="./vendor/pdf.min.js"></script>
+  <script src="./vendor/pdf-lib.min.js"></script>
+  <!-- Application Main Logic -->
+  <script src="app.js"></script>
+</body>
+</html>

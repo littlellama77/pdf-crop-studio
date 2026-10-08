@@ -1,0 +1,13 @@
+{
+  "name": "pdf-crop-studio",
+  "version": "1.0.0",
+  "description": "High-performance client-side PDF Cropping, Snipping, and Redaction Studio",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": ["pdf", "crop", "snip", "redact", "pdf-lib", "pdfjs"],
+  "author": "Antigravity",
+  "license": "MIT"
+}
