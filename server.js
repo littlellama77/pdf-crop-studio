@@ -20,7 +20,7 @@ const MIME_TYPES = {
   '.woff': 'font/woff'
 };
 
-const server = http.createServer((req, res) => {
+function handler(req, res) {
   // CORS and security headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
@@ -66,8 +66,13 @@ const server = http.createServer((req, res) => {
     const stream = fs.createReadStream(filePath);
     stream.pipe(res);
   });
-});
+}
 
-server.listen(PORT, () => {
-  console.log(`Server running at http://localhost:${PORT}/`);
-});
+module.exports = handler;
+
+if (require.main === module) {
+  const server = http.createServer(handler);
+  server.listen(PORT, () => {
+    console.log(`Server running at http://localhost:${PORT}/`);
+  });
+}
