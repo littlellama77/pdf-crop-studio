@@ -33,6 +33,12 @@ CropPDF Studio is a high-performance, private, in-browser document workbench. It
 * **Cover Mask / Whiteout Toggle**: Opaque white background to easily replace existing dates, company names, or typos.
 * **Vector PDF Embedding**: Embeds vector fonts into the final PDF output losslessly using `pdf-lib`.
 
+### 4. 🗑️ Delete PDF Pages
+* **1-Click Page Deletion**: Trash icon on each page thumbnail in the left sidebar to delete pages instantly.
+* **Header Controls & Keyboard Shortcut**: Quick delete the current page directly from the navigation bar or with <kbd>Shift + Del</kbd>.
+* **Batch Page Range Removal**: Remove multiple pages simultaneously using custom ranges (e.g., `2, 4-6, 8`).
+* **Lossless Vector Update**: Removes pages directly with `pdf-lib` without rasterization or quality loss, and download the edited document with one click.
+
 ---
 
 ## 🚀 Quick Start

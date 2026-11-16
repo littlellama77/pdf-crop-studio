@@ -292,6 +292,18 @@ body {
   transform: translateY(-1px);
 }
 
+.btn-danger {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.35);
+}
+.btn-danger:hover:not(:disabled) {
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+  box-shadow: 0 4px 14px rgba(239, 68, 68, 0.5);
+  transform: translateY(-1px);
+}
+
 .btn-lg {
   padding: 12px 22px;
   font-size: 0.98rem;
@@ -343,6 +355,14 @@ body {
 .icon-btn-sm {
   width: 26px;
   height: 26px;
+}
+
+.icon-btn-danger {
+  color: #f87171 !important;
+}
+.icon-btn-danger:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.18) !important;
+  color: #ef4444 !important;
 }
 
 .help-btn {
@@ -402,6 +422,7 @@ body {
 }
 
 .thumb-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -417,6 +438,36 @@ body {
 .thumb-card.active {
   background: rgba(99, 102, 241, 0.12);
   outline: 2px solid var(--primary);
+}
+
+.thumb-delete-btn {
+  position: absolute;
+  top: 9px;
+  right: 9px;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  background: rgba(15, 23, 42, 0.88);
+  border: 1px solid rgba(239, 68, 68, 0.45);
+  color: #f87171;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transform: scale(0.85);
+  transition: all 0.15s ease;
+  z-index: 10;
+}
+.thumb-card:hover .thumb-delete-btn {
+  opacity: 1;
+  transform: scale(1);
+}
+.thumb-delete-btn:hover {
+  background: #ef4444;
+  color: #ffffff;
+  border-color: #ef4444;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.5);
 }
 
 .thumb-canvas {

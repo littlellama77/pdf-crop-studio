@@ -73,6 +73,9 @@ if (window.pdfjsLib) {
     pageTotalDisplay: document.getElementById('pageTotalDisplay'),
     btnPrevPage: document.getElementById('btnPrevPage'),
     btnNextPage: document.getElementById('btnNextPage'),
+    btnDeleteCurrentPage: document.getElementById('btnDeleteCurrentPage'),
+    btnOpenDeletePagesModal: document.getElementById('btnOpenDeletePagesModal'),
+    btnHeaderDownloadPdf: document.getElementById('btnHeaderDownloadPdf'),
     btnZoomOut: document.getElementById('btnZoomOut'),
     btnZoomIn: document.getElementById('btnZoomIn'),
     zoomDisplay: document.getElementById('zoomDisplay'),
@@ -86,6 +89,19 @@ if (window.pdfjsLib) {
     btnHelp: document.getElementById('btnHelp'),
     modalHelp: document.getElementById('modalHelp'),
     btnCloseHelp: document.getElementById('btnCloseHelp'),
+
+    // Delete Pages Modal
+    modalDeletePages: document.getElementById('modalDeletePages'),
+    btnCloseDeletePagesModal: document.getElementById('btnCloseDeletePagesModal'),
+    btnCancelDeletePages: document.getElementById('btnCancelDeletePages'),
+    btnConfirmDeletePages: document.getElementById('btnConfirmDeletePages'),
+    delModalCurrentPageLabel: document.getElementById('delModalCurrentPageLabel'),
+    delModalTotalPages: document.getElementById('delModalTotalPages'),
+    delRangeInputContainer: document.getElementById('delRangeInputContainer'),
+    delRangeInput: document.getElementById('delRangeInput'),
+    delPreviewNotice: document.getElementById('delPreviewNotice'),
+    delPreviewCount: document.getElementById('delPreviewCount'),
+    deletePageOptions: document.querySelectorAll('input[name="deletePageOption"]'),
 
     // Sidebar & Viewport
     sidebarThumbnails: document.getElementById('sidebarThumbnails'),
@@ -415,6 +431,26 @@ if (window.pdfjsLib) {
     });
     elements.btnExportAnnotatedPDF?.addEventListener('click', exportAnnotatedPDF);
 
+    // Delete Pages Modal & Header Actions
+    elements.btnDeleteCurrentPage?.addEventListener('click', () => openDeletePagesModal(state.currentPage));
+    elements.btnOpenDeletePagesModal?.addEventListener('click', () => openDeletePagesModal(state.currentPage));
+    elements.btnCloseDeletePagesModal?.addEventListener('click', closeDeletePagesModal);
+    elements.btnCancelDeletePages?.addEventListener('click', closeDeletePagesModal);
+    elements.modalDeletePages?.addEventListener('click', (e) => {
+      if (e.target === elements.modalDeletePages) closeDeletePagesModal();
+    });
+    elements.deletePageOptions?.forEach(r => {
+      r.addEventListener('change', (e) => {
+        if (elements.delRangeInputContainer) {
+          elements.delRangeInputContainer.style.display = e.target.value === 'range' ? 'block' : 'none';
+        }
+        updateDeletePagesModalPreview();
+      });
+    });
+    elements.delRangeInput?.addEventListener('input', updateDeletePagesModalPreview);
+    elements.btnConfirmDeletePages?.addEventListener('click', handleConfirmDeletePages);
+    elements.btnHeaderDownloadPdf?.addEventListener('click', downloadCurrentPdf);
+
     // Canvas Stage double-click to drop text directly on PDF page
     elements.canvasStage?.addEventListener('dblclick', (e) => {
       if (e.target.closest('.doc-text-box') || e.target.closest('.crop-box') || e.target.closest('.handle')) return;
@@ -481,6 +517,12 @@ if (window.pdfjsLib) {
           switchTab('tabText');
           addPdfTextOverlay(state.currentPage);
         }
+      } else if (e.shiftKey && (e.key === 'Delete' || e.key === 'Backspace')) {
+        // Shift + Del shortcut: Quick delete current page
+        e.preventDefault();
+        if (state.pdfDoc && state.totalPages > 1) {
+          openDeletePagesModal(state.currentPage);
+        }
       } else if (e.key === 'Delete' || e.key === 'Backspace') {
         if (currentActiveText) {
           e.preventDefault();
@@ -500,8 +542,10 @@ if (window.pdfjsLib) {
       } else if (e.key === 'ArrowRight') {
         if (state.currentPage < state.totalPages) changePage(state.currentPage + 1);
       } else if (e.key === 'Escape') {
-        if (elements.modalHelp.style.display !== 'none') {
+        if (elements.modalHelp && elements.modalHelp.style.display !== 'none') {
           elements.modalHelp.style.display = 'none';
+        } else if (elements.modalDeletePages && elements.modalDeletePages.style.display !== 'none') {
+          closeDeletePagesModal();
         } else if (currentActiveText) {
           hideTextFormattingBar();
         } else {
@@ -531,24 +575,27 @@ if (window.pdfjsLib) {
     }
   }
 
-  async function processLoadedPDF(bytes) {
+  async function processLoadedPDF(bytes, targetPage = 1, preserveState = false) {
     state.pdfBytes = bytes;
     
     // Load with PDF.js
     const loadingTask = window.pdfjsLib.getDocument({ data: bytes.slice() });
     state.pdfDoc = await loadingTask.promise;
     state.totalPages = state.pdfDoc.numPages;
-    state.currentPage = 1;
-    state.rotation = 0;
-    state.redactions = {};
+    state.currentPage = Math.min(Math.max(1, targetPage || 1), state.totalPages);
+    if (!preserveState) {
+      state.rotation = 0;
+      state.redactions = {};
+      state.textOverlays = {};
+    }
 
     // Update UI elements
     elements.fileNameDisplay.textContent = state.fileName;
     elements.filePagesBadge.textContent = `${state.totalPages} page${state.totalPages > 1 ? 's' : ''}`;
     elements.pageTotalDisplay.textContent = state.totalPages;
     elements.pageNumberInput.max = state.totalPages;
-    elements.pageNumberInput.value = 1;
-    elements.currentPageNumDisplays.forEach(el => el.textContent = '1');
+    elements.pageNumberInput.value = state.currentPage;
+    elements.currentPageNumDisplays.forEach(el => el.textContent = state.currentPage.toString());
 
     elements.docMeta.style.display = 'flex';
     elements.headerPageNav.style.display = 'flex';
@@ -556,6 +603,12 @@ if (window.pdfjsLib) {
     elements.emptyDropzone.style.display = 'none';
     elements.canvasWorkspace.style.display = 'flex';
     elements.panelInspector.style.display = 'flex';
+    if (elements.btnHeaderDownloadPdf) {
+      elements.btnHeaderDownloadPdf.style.display = 'inline-flex';
+    }
+    if (elements.btnDeleteCurrentPage) {
+      elements.btnDeleteCurrentPage.disabled = state.totalPages <= 1;
+    }
 
     // Automatically detect and copy resume typography
     await detectAndApplyPdfResumeFont(state.pdfDoc);
@@ -783,6 +836,10 @@ if (window.pdfjsLib) {
     elements.pageNumberInput.value = pageNum;
     elements.btnPrevPage.disabled = pageNum <= 1;
     elements.btnNextPage.disabled = pageNum >= state.totalPages;
+    if (elements.btnDeleteCurrentPage) {
+      elements.btnDeleteCurrentPage.disabled = state.totalPages <= 1;
+      elements.btnDeleteCurrentPage.title = state.totalPages <= 1 ? "Cannot delete only page" : `Delete Page ${pageNum} from PDF (Shift+Del)`;
+    }
     elements.currentPageNumDisplays.forEach(el => el.textContent = pageNum.toString());
 
     // Update active thumbnail card
@@ -840,6 +897,20 @@ if (window.pdfjsLib) {
 
       card.appendChild(canvas);
       card.appendChild(label);
+
+      if (state.totalPages > 1) {
+        const delBtn = document.createElement('button');
+        delBtn.className = 'thumb-delete-btn';
+        delBtn.title = `Delete Page ${i}`;
+        delBtn.setAttribute('aria-label', `Delete Page ${i}`);
+        delBtn.innerHTML = `<svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2" fill="none"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>`;
+        delBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          promptDeletePage(i);
+        });
+        card.appendChild(delBtn);
+      }
+
       card.addEventListener('click', () => changePage(i));
       elements.thumbnailsContainer.appendChild(card);
 
@@ -2431,6 +2502,202 @@ if (window.pdfjsLib) {
       console.error('PDF export error:', err);
       showToast('Error exporting annotated PDF: ' + err.message, 'info');
     }
+  }
+
+  // ==========================================================================
+  // PDF PAGE DELETION & MANAGEMENT MODULE
+  // ==========================================================================
+  function parsePageRange(rangeStr, totalPages) {
+    if (!rangeStr || !rangeStr.trim()) return [];
+    const parts = rangeStr.split(',');
+    const pages = new Set();
+    for (const part of parts) {
+      const trimmed = part.trim();
+      if (!trimmed) continue;
+      if (trimmed.includes('-')) {
+        const [startStr, endStr] = trimmed.split('-');
+        const start = parseInt(startStr.trim(), 10);
+        const end = parseInt(endStr.trim(), 10);
+        if (!isNaN(start) && !isNaN(end)) {
+          const min = Math.min(start, end);
+          const max = Math.max(start, end);
+          for (let i = min; i <= max; i++) {
+            if (i >= 1 && i <= totalPages) pages.add(i);
+          }
+        }
+      } else {
+        const p = parseInt(trimmed, 10);
+        if (!isNaN(p) && p >= 1 && p <= totalPages) {
+          pages.add(p);
+        }
+      }
+    }
+    return Array.from(pages).sort((a, b) => a - b);
+  }
+
+  function openDeletePagesModal(defaultPage) {
+    if (!state.pdfBytes || !state.pdfDoc) {
+      showToast('Please open a PDF document first', 'info');
+      return;
+    }
+    if (state.totalPages <= 1) {
+      showToast('Cannot delete the only page in the document', 'info');
+      return;
+    }
+    const pageNum = defaultPage || state.currentPage || 1;
+    if (elements.delModalCurrentPageLabel) {
+      elements.delModalCurrentPageLabel.textContent = `Page ${pageNum}`;
+    }
+    if (elements.delModalTotalPages) {
+      elements.delModalTotalPages.textContent = state.totalPages.toString();
+    }
+    const currentRadio = document.querySelector('input[name="deletePageOption"][value="current"]');
+    if (currentRadio) currentRadio.checked = true;
+    if (elements.delRangeInputContainer) elements.delRangeInputContainer.style.display = 'none';
+    if (elements.delRangeInput) elements.delRangeInput.value = '';
+
+    updateDeletePagesModalPreview();
+    if (elements.modalDeletePages) elements.modalDeletePages.style.display = 'flex';
+  }
+
+  function closeDeletePagesModal() {
+    if (elements.modalDeletePages) elements.modalDeletePages.style.display = 'none';
+  }
+
+  function getSelectedPagesToDelete() {
+    const selectedOption = document.querySelector('input[name="deletePageOption"]:checked')?.value || 'current';
+    if (selectedOption === 'current') {
+      return [state.currentPage];
+    } else {
+      const val = elements.delRangeInput ? elements.delRangeInput.value : '';
+      return parsePageRange(val, state.totalPages);
+    }
+  }
+
+  function updateDeletePagesModalPreview() {
+    if (!elements.delPreviewNotice || !elements.delPreviewCount) return;
+    const pagesToDelete = getSelectedPagesToDelete();
+    const remainingCount = state.totalPages - pagesToDelete.length;
+
+    if (pagesToDelete.length === 0) {
+      elements.delPreviewNotice.textContent = 'Please enter valid page numbers to delete.';
+      elements.delPreviewNotice.style.color = 'var(--text-muted)';
+      if (elements.btnConfirmDeletePages) elements.btnConfirmDeletePages.disabled = true;
+    } else if (remainingCount < 1) {
+      elements.delPreviewNotice.textContent = 'Cannot delete all pages! A PDF document must keep at least 1 page.';
+      elements.delPreviewNotice.style.color = '#ef4444';
+      if (elements.btnConfirmDeletePages) elements.btnConfirmDeletePages.disabled = true;
+    } else {
+      elements.delPreviewCount.textContent = remainingCount.toString();
+      elements.delPreviewNotice.innerHTML = `Deleting <strong>${pagesToDelete.length} page${pagesToDelete.length === 1 ? '' : 's'}</strong> (${pagesToDelete.join(', ')}). Resulting PDF will have <strong>${remainingCount} page${remainingCount === 1 ? '' : 's'}</strong> remaining.`;
+      elements.delPreviewNotice.style.color = 'var(--text-main)';
+      if (elements.btnConfirmDeletePages) elements.btnConfirmDeletePages.disabled = false;
+    }
+  }
+
+  async function handleConfirmDeletePages() {
+    const pagesToDelete = getSelectedPagesToDelete();
+    if (pagesToDelete.length === 0) {
+      showToast('No pages selected to delete', 'info');
+      return;
+    }
+    closeDeletePagesModal();
+    await deletePages(pagesToDelete);
+  }
+
+  async function promptDeletePage(pageNum) {
+    if (!state.pdfBytes || state.totalPages <= 1) {
+      showToast('Cannot delete the only page in the document', 'info');
+      return;
+    }
+    const confirmed = window.confirm(`Permanently delete Page ${pageNum} of ${state.totalPages} from this PDF?`);
+    if (!confirmed) return;
+    await deletePages([pageNum]);
+  }
+
+  async function deletePages(pagesToDelete) {
+    if (!state.pdfBytes) return;
+    if (!pagesToDelete || pagesToDelete.length === 0) {
+      showToast('No pages selected to delete', 'info');
+      return;
+    }
+
+    const validPages = Array.from(new Set(pagesToDelete))
+      .filter(p => p >= 1 && p <= state.totalPages)
+      .sort((a, b) => a - b);
+
+    if (validPages.length === 0) {
+      showToast('Invalid page numbers provided', 'info');
+      return;
+    }
+
+    if (validPages.length >= state.totalPages) {
+      showToast('Cannot delete all pages. Document must keep at least 1 page.', 'info');
+      return;
+    }
+
+    try {
+      showToast(`Deleting ${validPages.length} page${validPages.length === 1 ? '' : 's'}...`, 'info');
+      const { PDFDocument } = window.PDFLib;
+      const doc = await PDFDocument.load(state.pdfBytes);
+
+      // Convert to 0-based indices and remove in descending order so subsequent indices stay valid
+      const indicesDesc = validPages.map(p => p - 1).sort((a, b) => b - a);
+      for (const idx of indicesDesc) {
+        doc.removePage(idx);
+      }
+
+      const newPdfBytes = await doc.save();
+
+      // Shift text and redaction overlays
+      shiftOverlaysAfterPagesDeletion(new Set(validPages));
+
+      // Calculate new current page
+      const deletedBeforeOrAtCurrent = validPages.filter(p => p <= state.currentPage).length;
+      let targetPage = state.currentPage - deletedBeforeOrAtCurrent;
+      if (targetPage < 1) targetPage = 1;
+      const newTotal = state.totalPages - validPages.length;
+      if (targetPage > newTotal) targetPage = newTotal;
+
+      await processLoadedPDF(newPdfBytes, targetPage, true);
+
+      showToast(`Deleted ${validPages.length} page${validPages.length === 1 ? '' : 's'}. Document now has ${state.totalPages} page${state.totalPages === 1 ? '' : 's'}.`, 'success');
+    } catch (err) {
+      console.error('Error deleting pages:', err);
+      showToast('Failed to delete pages: ' + err.message, 'info');
+    }
+  }
+
+  function shiftOverlaysAfterPagesDeletion(deletedPagesSet) {
+    const remap = (map) => {
+      const newMap = {};
+      for (const [pStr, items] of Object.entries(map || {})) {
+        const p = parseInt(pStr, 10);
+        if (deletedPagesSet.has(p)) continue;
+        let shift = 0;
+        deletedPagesSet.forEach(dp => { if (dp < p) shift++; });
+        const newPageNum = p - shift;
+        newMap[newPageNum] = items.map(item => ({ ...item, pageNum: newPageNum }));
+      }
+      return newMap;
+    };
+    state.redactions = remap(state.redactions);
+    state.textOverlays = remap(state.textOverlays);
+  }
+
+  function downloadCurrentPdf() {
+    if (!state.pdfBytes) return;
+    const blob = new Blob([state.pdfBytes], { type: 'application/pdf' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const baseName = (state.fileName || 'document').replace(/\.pdf$/i, '');
+    a.href = url;
+    a.download = `${baseName}_edited.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('Downloaded edited PDF!', 'success');
   }
 
   // ==========================================================================
