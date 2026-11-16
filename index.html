@@ -6,10 +6,10 @@
   <title>CropPDF Studio — Snip, Trim & Redact PDFs in Your Browser</title>
   <meta name="description" content="Ultra-fast, private, and precise PDF Cropper. Snip visual elements to PNG/JPG, trim document page margins losslessly, or cut out unwanted content.">
   
-  <!-- Google Fonts: Outfit & Inter -->
+  <!-- Google Fonts: Outfit, Inter, Roboto & EB Garamond -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800&family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
   
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -227,6 +227,11 @@
             <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             <span>Clear</span>
           </button>
+          <div class="separator-v" style="height: 18px; margin: 0 4px;"></div>
+          <button id="btnPdfFloatingAddText" class="btn-tool btn-tool-accent" title="Add text to document with matching font (T)">
+            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><path d="M4 7V4h16v3M9 20h6M12 4v16"/></svg>
+            <span>+ Add Text</span>
+          </button>
         </div>
       </div>
     </section>
@@ -246,6 +251,10 @@
         <button class="tab-btn" data-tab="tabRedact" id="tabBtnRedact" title="Cut out or erase unwanted content from page">
           <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2" fill="none"><path d="M20 20H7L3 16C2 15 2 13 3 12L13 2L22 11L17 16"/><path d="M18 12L7 12"/></svg>
           <span>Cut Out / Erase</span>
+        </button>
+        <button class="tab-btn" data-tab="tabText" id="tabBtnText" title="Add text to document matching resume font">
+          <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2" fill="none"><path d="M4 7V4h16v3M9 20h6M12 4v16"/></svg>
+          <span>Add Text</span>
         </button>
       </div>
 
@@ -435,6 +444,54 @@
             </button>
           </div>
         </div>
+
+        <!-- TAB 4: ADD TEXT & ANNOTATE -->
+        <div class="tab-pane" id="tabText">
+          <div class="inspector-card">
+            <div class="flex-between">
+              <span class="card-title">Resume Font Copier</span>
+              <span class="badge-emerald" id="pdfFontStatusBadge">Auto-Copied ✨</span>
+            </div>
+            <p class="field-hint" style="margin-bottom: 12px;">Analyzes document vector typography. Added text automatically copies the resume's exact font and size!</p>
+
+            <div class="resume-font-preview-box">
+              <div class="flex-between">
+                <span class="metric-label">Dominant Resume Font</span>
+                <span class="badge-dim" id="pdfDetectedFontFamily">Helvetica</span>
+              </div>
+              <div class="flex-between" style="margin-top: 6px;">
+                <span class="metric-label">Dominant Body Size</span>
+                <span class="badge-dim" id="pdfDetectedFontSize">11 pt</span>
+              </div>
+              <div class="flex-between" style="margin-top: 6px;">
+                <span class="metric-label">Dominant Color</span>
+                <span class="font-color-indicator" id="pdfDetectedFontColor"><span class="color-dot" style="background:#1e293b;"></span> #1e293b</span>
+              </div>
+            </div>
+
+            <button id="btnPdfInspectorAddText" class="btn btn-primary btn-block" style="margin-top: 12px;">
+              <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2" fill="none"><path d="M4 7V4h16v3M9 20h6M12 4v16"/></svg>
+              <span>+ Add Text to Current Page</span>
+            </button>
+          </div>
+
+          <div class="inspector-card">
+            <div class="flex-between">
+              <span class="card-title">Page Text Additions</span>
+              <span class="badge-accent" id="pdfTextCountBadge">0 items</span>
+            </div>
+            <div id="pdfTextListContainer" class="redact-list" style="margin-top: 10px;">
+              <div class="empty-hint" id="noPdfTextHint">No text boxes on this page yet. Click "+ Add Text to Current Page" or click anywhere on the page canvas.</div>
+            </div>
+          </div>
+
+          <div class="inspector-card">
+            <button id="btnExportAnnotatedPDF" class="btn btn-primary btn-block" disabled>
+              <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>Download PDF with Text Added</span>
+            </button>
+          </div>
+        </div>
       </div>
     </aside>
   </main>
@@ -524,6 +581,19 @@
           <button id="btnCvFitPage" class="icon-btn icon-btn-sm" title="Fit Page to Screen">
             <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="m3 3 6 6M21 3l-6 6M3 21l6-6M21 21l-6-6"/></svg>
           </button>
+        </div>
+
+        <div class="separator-v"></div>
+
+        <button id="btnCvAddText" class="btn btn-primary btn-sm btn-cv-add-text" title="Add text box to resume wherever needed (Press T)">
+          <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><path d="M4 7V4h16v3M9 20h6M12 4v16"/></svg>
+          <span>+ Add Text</span>
+        </button>
+
+        <div class="resume-font-badge" id="cvResumeFontBadge" title="Dominant resume font automatically applied to new text">
+          <span class="badge-sparkle-dot"></span>
+          <span class="font-badge-label">Font Copied:</span>
+          <strong id="cvActiveFontDisplayName">Inter 11pt</strong>
         </div>
 
         <div class="separator-v"></div>
@@ -636,6 +706,38 @@
           <span class="toggle-label">Enhance Text Sharpness</span>
         </label>
         <p class="field-hint">Sharpen text and increase contrast for crisp readability.</p>
+      </div>
+
+      <!-- Resume Typography & Text Additions -->
+      <div class="inspector-card">
+        <div class="flex-between">
+          <span class="card-title">Resume Typography & Text</span>
+          <span class="badge-accent" id="cvTextOverlayCountBadge">0 added</span>
+        </div>
+        <p class="field-hint" style="margin-bottom: 10px;">
+          Add custom text wherever needed. New text automatically copies the general resume font and size!
+        </p>
+
+        <div class="resume-font-preview-box">
+          <div class="flex-between">
+            <span class="metric-label">Active Base Font</span>
+            <span class="badge-emerald" id="cvDominantFontTag">Auto-Copied ✨</span>
+          </div>
+          <div class="font-current-row">
+            <div class="font-spec-pill" id="cvCurrentFontSpec">Inter • 11pt • #1e293b</div>
+            <button id="btnCvResetBaseFont" class="btn btn-secondary btn-xs" title="Reset to auto-detected resume font">Match Resume</button>
+          </div>
+        </div>
+
+        <div class="btn-row" style="margin-top: 10px;">
+          <button id="btnCvInspectorAddText" class="btn btn-secondary flex-1">
+            <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><path d="M4 7V4h16v3M9 20h6M12 4v16"/></svg>
+            <span>+ Add Text Box</span>
+          </button>
+          <button id="btnCvClearAllText" class="btn btn-secondary" title="Remove all added text boxes">
+            <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
+          </button>
+        </div>
       </div>
 
       <!-- Export Actions -->
@@ -799,6 +901,74 @@
 
   <!-- Toast Notification Container -->
   <div id="toastContainer" class="toast-container"></div>
+
+  <!-- Floating Text Formatting Bar (Appears when text box is active) -->
+  <div class="text-formatting-bar" id="textFormattingBar" style="display: none;">
+    <div class="tf-drag-grip" title="Drag formatting toolbar">⠿</div>
+    
+    <div class="tf-group">
+      <select id="tfFontFamilySelect" class="tf-select" title="Font Family (Resume Matched font is pinned)">
+        <option value="match" id="tfOptionResumeMatch">⭐ Resume Match</option>
+        <option value="Inter, sans-serif">Inter (Clean Sans)</option>
+        <option value="Arial, Helvetica, sans-serif">Arial / Helvetica</option>
+        <option value="Calibri, Candara, sans-serif">Calibri (Office)</option>
+        <option value="'Times New Roman', Times, serif">Times New Roman</option>
+        <option value="'EB Garamond', Garamond, Georgia, serif">Garamond (Executive Serif)</option>
+        <option value="Georgia, serif">Georgia (Editorial)</option>
+        <option value="Roboto, sans-serif">Roboto (Tech Sans)</option>
+      </select>
+      
+      <button id="tfBtnSyncResumeFont" class="tf-btn" title="Copy / Reset to exact Resume Font & Size">
+        <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" stroke-width="2" fill="none"><path d="M20 6L9 17l-5-5"/></svg>
+        <span>Copy Font</span>
+      </button>
+    </div>
+
+    <div class="tf-divider"></div>
+
+    <div class="tf-group">
+      <button id="tfBtnSizeDec" class="tf-icon-btn" title="Decrease Size">-</button>
+      <span id="tfFontSizeVal" class="tf-size-label">11 pt</span>
+      <button id="tfBtnSizeInc" class="tf-icon-btn" title="Increase Size">+</button>
+    </div>
+
+    <div class="tf-divider"></div>
+
+    <div class="tf-group">
+      <button id="tfBtnBold" class="tf-icon-btn" title="Bold (Ctrl+B)"><b>B</b></button>
+      <button id="tfBtnItalic" class="tf-icon-btn" title="Italic (Ctrl+I)"><i>I</i></button>
+      <button id="tfBtnAlignLeft" class="tf-icon-btn active" title="Align Left">
+        <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2" fill="none"><line x1="17" y1="10" x2="3" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="17" y1="18" x2="3" y2="18"/></svg>
+      </button>
+      <button id="tfBtnAlignCenter" class="tf-icon-btn" title="Align Center">
+        <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2" fill="none"><line x1="18" y1="10" x2="6" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="18" y1="18" x2="6" y2="18"/></svg>
+      </button>
+    </div>
+
+    <div class="tf-divider"></div>
+
+    <div class="tf-group">
+      <div class="tf-color-picker-wrap" title="Text Color">
+        <input type="color" id="tfColorInput" value="#1e293b" class="tf-color-input">
+        <div class="tf-color-preview" id="tfColorPreview" style="background-color: #1e293b;"></div>
+      </div>
+      <button id="tfBtnWhiteoutToggle" class="tf-btn tf-btn-toggle" title="Whiteout Cover Mask: solid white background to cover up old text/dates on resume">
+        <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" stroke-width="2" fill="none"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="m9 12 2 2 4-4"/></svg>
+        <span>Cover Mask</span>
+      </button>
+    </div>
+
+    <div class="tf-divider"></div>
+
+    <div class="tf-group">
+      <button id="tfBtnDuplicate" class="tf-icon-btn" title="Duplicate Text Box">
+        <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" stroke-width="2" fill="none"><rect width="13" height="13" x="9" y="9" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+      </button>
+      <button id="tfBtnDelete" class="tf-icon-btn tf-icon-btn-danger" title="Delete Text Box (Delete)">
+        <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" stroke-width="2" fill="none"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+      </button>
+    </div>
+  </div>
 
   <!-- PDF.js & pdf-lib (Local Vendor Scripts) -->
   <script src="./vendor/pdf.min.js"></script>

@@ -39,6 +39,19 @@ if (window.pdfjsLib) {
     // Redaction cut-out boxes (stored per page: { pageNum: [ { normX, normY, normW, normH, color } ] })
     redactions: {},
 
+    // Resume typography profile (copied from document text)
+    resumeFont: {
+      family: 'Helvetica, Arial, sans-serif',
+      name: 'Helvetica',
+      size: 11,
+      color: '#1e293b',
+      pdfStandard: 'Helvetica',
+      weight: 'normal'
+    },
+
+    // Text annotations per page: { pageNum: [ { id, normX, normY, normW, text, fontFamily, fontName, fontSize, fontWeight, fontStyle, color, isWhiteout } ] }
+    textOverlays: {},
+
     // Drag / Resize interaction state
     interaction: {
       mode: null,          // 'draw', 'move', 'resize', or null
@@ -214,7 +227,49 @@ if (window.pdfjsLib) {
     cvCaptureStage: document.getElementById('cvCaptureStage'),
     cvCaptureCanvas: document.getElementById('cvCaptureCanvas'),
     cvCaptureCropBox: document.getElementById('cvCaptureCropBox'),
-    cvCaptureCropBadge: document.getElementById('cvCaptureCropBadge')
+    cvCaptureCropBadge: document.getElementById('cvCaptureCropBadge'),
+
+    // Text Injection & Typography Elements (PDF Studio)
+    btnPdfFloatingAddText: document.getElementById('btnPdfFloatingAddText'),
+    tabBtnText: document.getElementById('tabBtnText'),
+    tabText: document.getElementById('tabText'),
+    pdfFontStatusBadge: document.getElementById('pdfFontStatusBadge'),
+    pdfDetectedFontFamily: document.getElementById('pdfDetectedFontFamily'),
+    pdfDetectedFontSize: document.getElementById('pdfDetectedFontSize'),
+    pdfDetectedFontColor: document.getElementById('pdfDetectedFontColor'),
+    btnPdfInspectorAddText: document.getElementById('btnPdfInspectorAddText'),
+    pdfTextCountBadge: document.getElementById('pdfTextCountBadge'),
+    pdfTextListContainer: document.getElementById('pdfTextListContainer'),
+    noPdfTextHint: document.getElementById('noPdfTextHint'),
+    btnExportAnnotatedPDF: document.getElementById('btnExportAnnotatedPDF'),
+
+    // Text Injection & Typography Elements (CV Compiler)
+    btnCvAddText: document.getElementById('btnCvAddText'),
+    cvResumeFontBadge: document.getElementById('cvResumeFontBadge'),
+    cvActiveFontDisplayName: document.getElementById('cvActiveFontDisplayName'),
+    cvTextOverlayCountBadge: document.getElementById('cvTextOverlayCountBadge'),
+    cvCurrentFontSpec: document.getElementById('cvCurrentFontSpec'),
+    btnCvResetBaseFont: document.getElementById('btnCvResetBaseFont'),
+    btnCvInspectorAddText: document.getElementById('btnCvInspectorAddText'),
+    btnCvClearAllText: document.getElementById('btnCvClearAllText'),
+
+    // Floating Text Formatting Bar
+    textFormattingBar: document.getElementById('textFormattingBar'),
+    tfFontFamilySelect: document.getElementById('tfFontFamilySelect'),
+    tfOptionResumeMatch: document.getElementById('tfOptionResumeMatch'),
+    tfBtnSyncResumeFont: document.getElementById('tfBtnSyncResumeFont'),
+    tfBtnSizeDec: document.getElementById('tfBtnSizeDec'),
+    tfFontSizeVal: document.getElementById('tfFontSizeVal'),
+    tfBtnSizeInc: document.getElementById('tfBtnSizeInc'),
+    tfBtnBold: document.getElementById('tfBtnBold'),
+    tfBtnItalic: document.getElementById('tfBtnItalic'),
+    tfBtnAlignLeft: document.getElementById('tfBtnAlignLeft'),
+    tfBtnAlignCenter: document.getElementById('tfBtnAlignCenter'),
+    tfColorInput: document.getElementById('tfColorInput'),
+    tfColorPreview: document.getElementById('tfColorPreview'),
+    tfBtnWhiteoutToggle: document.getElementById('tfBtnWhiteoutToggle'),
+    tfBtnDuplicate: document.getElementById('tfBtnDuplicate'),
+    tfBtnDelete: document.getElementById('tfBtnDelete')
   };
 
   // --- INITIALIZATION ---
@@ -223,6 +278,7 @@ if (window.pdfjsLib) {
     setupDropzone();
     setupKeyboardShortcuts();
     setupCropInteractions();
+    setupTextFormattingBar();
     setupCvCompiler();
   }
 
@@ -348,6 +404,25 @@ if (window.pdfjsLib) {
     // Export Actions - Redact Tab
     elements.btnAddCurrentAsCutout.addEventListener('click', addCurrentAsCutout);
     elements.btnExportCleanedPDF.addEventListener('click', exportCleanedPDF);
+
+    // Text Actions - PDF Studio Tab 4
+    elements.btnPdfFloatingAddText?.addEventListener('click', () => {
+      switchTab('tabText');
+      addPdfTextOverlay(state.currentPage);
+    });
+    elements.btnPdfInspectorAddText?.addEventListener('click', () => {
+      addPdfTextOverlay(state.currentPage);
+    });
+    elements.btnExportAnnotatedPDF?.addEventListener('click', exportAnnotatedPDF);
+
+    // Canvas Stage double-click to drop text directly on PDF page
+    elements.canvasStage?.addEventListener('dblclick', (e) => {
+      if (e.target.closest('.doc-text-box') || e.target.closest('.crop-box') || e.target.closest('.handle')) return;
+      const rect = elements.canvasStage.getBoundingClientRect();
+      const normX = Math.max(0.02, Math.min(0.85, (e.clientX - rect.left) / rect.width));
+      const normY = Math.max(0.02, Math.min(0.9, (e.clientY - rect.top) / rect.height));
+      addPdfTextOverlay(state.currentPage, normX, normY);
+    });
   }
 
   // --- DROPZONE SETUP ---
@@ -382,16 +457,35 @@ if (window.pdfjsLib) {
   // --- KEYBOARD SHORTCUTS ---
   function setupKeyboardShortcuts() {
     window.addEventListener('keydown', (e) => {
-      // Don't trigger if focus is on an input
-      if (['INPUT', 'TEXTAREA'].includes(document.target?.tagName)) return;
+      // Don't trigger shortcuts if user is actively editing text in a box
+      if (document.activeElement?.getAttribute('contenteditable') === 'true') {
+        if (e.key === 'Escape') {
+          document.activeElement.blur();
+          hideTextFormattingBar();
+        }
+        return;
+      }
+      if (['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName)) return;
 
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
         if (state.crop.active) {
           e.preventDefault();
           copySnippetToClipboard();
         }
+      } else if (e.key.toLowerCase() === 't' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        // T shortcut: Quick add text with copied resume font
+        e.preventDefault();
+        if (window._cvState && window._cvState.activeMode === 'cv') {
+          addCvTextOverlay(0);
+        } else if (state.pdfDoc) {
+          switchTab('tabText');
+          addPdfTextOverlay(state.currentPage);
+        }
       } else if (e.key === 'Delete' || e.key === 'Backspace') {
-        if (state.crop.active) {
+        if (currentActiveText) {
+          e.preventDefault();
+          deleteActiveText();
+        } else if (state.crop.active) {
           e.preventDefault();
           clearCropBox();
         }
@@ -408,6 +502,8 @@ if (window.pdfjsLib) {
       } else if (e.key === 'Escape') {
         if (elements.modalHelp.style.display !== 'none') {
           elements.modalHelp.style.display = 'none';
+        } else if (currentActiveText) {
+          hideTextFormattingBar();
         } else {
           clearCropBox();
         }
@@ -461,12 +557,20 @@ if (window.pdfjsLib) {
     elements.canvasWorkspace.style.display = 'flex';
     elements.panelInspector.style.display = 'flex';
 
+    // Automatically detect and copy resume typography
+    await detectAndApplyPdfResumeFont(state.pdfDoc);
+
     // Render initial page
     await renderPage(state.currentPage);
     renderThumbnails();
 
     // Default crop box (centered 70% width, 50% height)
     setDefaultCropBox();
+
+    // Automatically switch view to PDF Studio mode so the document is immediately visible
+    if (typeof window._switchToMode === 'function') {
+      window._switchToMode('pdf');
+    }
   }
 
   // --- SAMPLE PDF GENERATOR ---
@@ -714,6 +818,7 @@ if (window.pdfjsLib) {
     updateCropBoxUI();
     updateSnippetPreview();
     renderRedactionOverlays();
+    renderPdfTextOverlays();
   }
 
   // --- THUMBNAILS GENERATION ---
@@ -1564,6 +1669,771 @@ if (window.pdfjsLib) {
   }
 
   // ==========================================================================
+  // RESUME FONT DETECTION ENGINE & TEXT ANNOTATION SYSTEM
+  // ==========================================================================
+
+  function normalizeFontName(rawName) {
+    if (!rawName) return { family: 'Arial, Helvetica, sans-serif', name: 'Arial', pdfStandard: 'Helvetica' };
+    const lower = rawName.toLowerCase();
+
+    if (lower.includes('calibri')) {
+      return { family: 'Calibri, Candara, Segoe, sans-serif', name: 'Calibri', pdfStandard: 'Helvetica' };
+    }
+    if (lower.includes('helvetica')) {
+      return { family: 'Helvetica, Arial, sans-serif', name: 'Helvetica', pdfStandard: 'Helvetica' };
+    }
+    if (lower.includes('arial')) {
+      return { family: 'Arial, Helvetica, sans-serif', name: 'Arial', pdfStandard: 'Helvetica' };
+    }
+    if (lower.includes('times') || lower.includes('cambria')) {
+      return { family: '"Times New Roman", Times, serif', name: 'Times New Roman', pdfStandard: 'TimesRoman' };
+    }
+    if (lower.includes('garamond')) {
+      return { family: '"EB Garamond", Garamond, Georgia, serif', name: 'Garamond', pdfStandard: 'TimesRoman' };
+    }
+    if (lower.includes('georgia')) {
+      return { family: 'Georgia, serif', name: 'Georgia', pdfStandard: 'TimesRoman' };
+    }
+    if (lower.includes('roboto')) {
+      return { family: 'Roboto, sans-serif', name: 'Roboto', pdfStandard: 'Helvetica' };
+    }
+    if (lower.includes('inter')) {
+      return { family: 'Inter, sans-serif', name: 'Inter', pdfStandard: 'Helvetica' };
+    }
+    if (lower.includes('serif')) {
+      return { family: '"Times New Roman", Times, serif', name: 'Times New Roman', pdfStandard: 'TimesRoman' };
+    }
+    
+    // Clean custom font name if reasonably formatted
+    const clean = rawName.replace(/^[A-Z]{6}\+/, '').replace(/-?(Regular|Bold|Italic|MT|PSMT|Roman)$/i, '').trim();
+    if (clean && clean.length > 2) {
+      return { family: `"${clean}", Arial, sans-serif`, name: clean, pdfStandard: 'Helvetica' };
+    }
+    return { family: 'Arial, Helvetica, sans-serif', name: 'Arial', pdfStandard: 'Helvetica' };
+  }
+
+  async function detectAndApplyPdfResumeFont(pdfDoc) {
+    if (!pdfDoc) return;
+    try {
+      const fontCounts = {};
+      const sizeCounts = {};
+      const pagesToScan = Math.min(pdfDoc.numPages, 4);
+
+      for (let p = 1; p <= pagesToScan; p++) {
+        const page = await pdfDoc.getPage(p);
+        const textContent = await page.getTextContent();
+        const styles = textContent.styles || {};
+
+        for (const item of textContent.items) {
+          if (!item.str || !item.str.trim()) continue;
+          const len = item.str.length;
+          const fontKey = item.fontName;
+          const styleObj = styles[fontKey] || {};
+          const rawFamily = styleObj.fontFamily || fontKey || '';
+          const norm = normalizeFontName(rawFamily);
+
+          fontCounts[norm.name] = (fontCounts[norm.name] || 0) + len;
+
+          const size = Math.round(item.height || (item.transform ? Math.abs(item.transform[0]) : 11));
+          if (size >= 8 && size <= 28) {
+            sizeCounts[size] = (sizeCounts[size] || 0) + len;
+          }
+        }
+      }
+
+      // Find dominant font name
+      let dominantName = 'Helvetica';
+      let maxCount = 0;
+      for (const [name, count] of Object.entries(fontCounts)) {
+        if (count > maxCount) {
+          maxCount = count;
+          dominantName = name;
+        }
+      }
+
+      // Find dominant body size
+      let dominantSize = 11;
+      let maxSizeCount = 0;
+      for (const [s, count] of Object.entries(sizeCounts)) {
+        if (count > maxSizeCount) {
+          maxSizeCount = count;
+          dominantSize = parseInt(s, 10);
+        }
+      }
+
+      const fontObj = normalizeFontName(dominantName);
+      state.resumeFont = {
+        family: fontObj.family,
+        name: fontObj.name,
+        size: dominantSize,
+        color: '#1e293b',
+        pdfStandard: fontObj.pdfStandard,
+        weight: 'normal'
+      };
+
+      if (window._cvState) {
+        window._cvState.resumeFont = { ...state.resumeFont };
+      }
+
+      updateResumeFontUI();
+      showToast(`✨ Copied resume font: ${state.resumeFont.name} (${state.resumeFont.size}pt)`, 'success');
+    } catch (err) {
+      console.warn('Could not detect font from PDF:', err);
+    }
+  }
+
+  function updateResumeFontUI() {
+    const f = state.resumeFont || (window._cvState ? window._cvState.resumeFont : { name: 'Inter', size: 11, color: '#1e293b' });
+    if (elements.pdfDetectedFontFamily) elements.pdfDetectedFontFamily.textContent = f.name;
+    if (elements.pdfDetectedFontSize) elements.pdfDetectedFontSize.textContent = `${f.size} pt`;
+    if (elements.cvActiveFontDisplayName) elements.cvActiveFontDisplayName.textContent = `${f.name} ${f.size}pt`;
+    if (elements.cvCurrentFontSpec) elements.cvCurrentFontSpec.textContent = `${f.name} • ${f.size}pt • ${f.color || '#1e293b'}`;
+    if (elements.tfOptionResumeMatch) elements.tfOptionResumeMatch.textContent = `⭐ Resume Match (${f.name} ${f.size}pt)`;
+  }
+
+  // --- FLOATING TEXT FORMATTING BAR CONTROLLER ---
+  let currentActiveText = null;
+  let activeTextMode = 'cv';
+  let activeTextEl = null;
+
+  function showTextFormattingBar(textObj, element, mode) {
+    currentActiveText = textObj;
+    activeTextMode = mode;
+    activeTextEl = element;
+
+    if (!elements.textFormattingBar) return;
+    elements.textFormattingBar.style.display = 'flex';
+
+    // Position above element
+    const rect = element.getBoundingClientRect();
+    const barW = elements.textFormattingBar.offsetWidth || 380;
+    let left = rect.left + rect.width / 2;
+    let top = rect.top - 12;
+
+    left = Math.max(barW / 2 + 10, Math.min(window.innerWidth - barW / 2 - 10, left));
+    if (top < 70) top = rect.bottom + 46;
+
+    elements.textFormattingBar.style.left = `${left}px`;
+    elements.textFormattingBar.style.top = `${top}px`;
+
+    // Sync bar values
+    if (elements.tfFontFamilySelect) {
+      const baseFam = (mode === 'cv' ? window._cvState?.resumeFont?.family : state.resumeFont?.family);
+      const isMatch = (textObj.fontFamily === baseFam);
+      elements.tfFontFamilySelect.value = isMatch ? 'match' : textObj.fontFamily;
+    }
+    if (elements.tfFontSizeVal) elements.tfFontSizeVal.textContent = `${textObj.fontSize || 11} pt`;
+    if (elements.tfBtnBold) elements.tfBtnBold.classList.toggle('active', textObj.fontWeight === 'bold');
+    if (elements.tfBtnItalic) elements.tfBtnItalic.classList.toggle('active', textObj.fontStyle === 'italic');
+    if (elements.tfColorInput) elements.tfColorInput.value = textObj.color || '#1e293b';
+    if (elements.tfColorPreview) elements.tfColorPreview.style.backgroundColor = textObj.color || '#1e293b';
+    if (elements.tfBtnWhiteoutToggle) elements.tfBtnWhiteoutToggle.classList.toggle('active', !!textObj.isWhiteout);
+    if (elements.tfBtnAlignLeft) elements.tfBtnAlignLeft.classList.toggle('active', (textObj.textAlign || 'left') === 'left');
+    if (elements.tfBtnAlignCenter) elements.tfBtnAlignCenter.classList.toggle('active', textObj.textAlign === 'center');
+  }
+
+  function hideTextFormattingBar() {
+    if (elements.textFormattingBar) elements.textFormattingBar.style.display = 'none';
+    document.querySelectorAll('.cv-text-box.selected, .doc-text-box.selected').forEach(el => el.classList.remove('selected'));
+    currentActiveText = null;
+    activeTextEl = null;
+  }
+
+  function updateActiveTextElementStyle() {
+    if (!currentActiveText || !activeTextEl) return;
+    const contentEl = activeTextEl.querySelector('.cv-text-content, .doc-text-content');
+    if (contentEl) {
+      contentEl.style.fontFamily = currentActiveText.fontFamily;
+      const scale = activeTextMode === 'pdf' ? (state.currentScale || 1.0) : 1.333;
+      contentEl.style.fontSize = `${Math.round(currentActiveText.fontSize * scale)}px`;
+      contentEl.style.fontWeight = currentActiveText.fontWeight;
+      contentEl.style.fontStyle = currentActiveText.fontStyle;
+      contentEl.style.color = currentActiveText.color;
+      contentEl.style.textAlign = currentActiveText.textAlign || 'left';
+    }
+    activeTextEl.classList.toggle('is-whiteout', !!currentActiveText.isWhiteout);
+  }
+
+  function duplicateActiveText() {
+    if (!currentActiveText) return;
+    if (activeTextMode === 'cv' && window._cvState) {
+      const clone = {
+        ...currentActiveText,
+        id: 'cv_txt_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+        x: currentActiveText.x + 20,
+        y: currentActiveText.y + 20
+      };
+      window._cvState.textOverlays.push(clone);
+      renderCvTextOverlays();
+      selectTextOverlay(clone.id, 'cv');
+      updateCvTextBadge();
+    } else {
+      const pNum = currentActiveText.pageNum;
+      const clone = {
+        ...currentActiveText,
+        id: 'pdf_txt_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+        normX: Math.min(0.85, currentActiveText.normX + 0.03),
+        normY: Math.min(0.9, currentActiveText.normY + 0.03)
+      };
+      if (!state.textOverlays[pNum]) state.textOverlays[pNum] = [];
+      state.textOverlays[pNum].push(clone);
+      renderPdfTextOverlays();
+      selectTextOverlay(clone.id, 'pdf');
+      updatePdfTextBadge();
+    }
+    showToast('Text box duplicated', 'info');
+  }
+
+  function deleteActiveText() {
+    if (!currentActiveText) return;
+    const delId = currentActiveText.id;
+    if (activeTextMode === 'cv' && window._cvState) {
+      window._cvState.textOverlays = window._cvState.textOverlays.filter(t => t.id !== delId);
+      renderCvTextOverlays();
+      updateCvTextBadge();
+    } else {
+      const pNum = currentActiveText.pageNum;
+      if (state.textOverlays[pNum]) {
+        state.textOverlays[pNum] = state.textOverlays[pNum].filter(t => t.id !== delId);
+      }
+      renderPdfTextOverlays();
+      updatePdfTextBadge();
+    }
+    hideTextFormattingBar();
+    showToast('Text box removed', 'info');
+  }
+
+  function setupTextFormattingBar() {
+    elements.tfFontFamilySelect?.addEventListener('change', (e) => {
+      if (!currentActiveText) return;
+      const val = e.target.value;
+      if (val === 'match') {
+        const base = (activeTextMode === 'cv' ? window._cvState?.resumeFont : state.resumeFont) || { family: 'Inter, sans-serif', name: 'Inter', size: 11 };
+        currentActiveText.fontFamily = base.family;
+        currentActiveText.fontName = base.name;
+      } else {
+        currentActiveText.fontFamily = val;
+        currentActiveText.fontName = val.split(',')[0].replace(/['"]/g, '').trim();
+      }
+      updateActiveTextElementStyle();
+    });
+
+    elements.tfBtnSyncResumeFont?.addEventListener('click', () => {
+      if (!currentActiveText) return;
+      const base = (activeTextMode === 'cv' ? window._cvState?.resumeFont : state.resumeFont) || { family: 'Inter, sans-serif', name: 'Inter', size: 11, color: '#1e293b' };
+      currentActiveText.fontFamily = base.family;
+      currentActiveText.fontName = base.name;
+      currentActiveText.fontSize = base.size || 11;
+      currentActiveText.color = base.color || '#1e293b';
+      if (elements.tfFontFamilySelect) elements.tfFontFamilySelect.value = 'match';
+      if (elements.tfFontSizeVal) elements.tfFontSizeVal.textContent = `${currentActiveText.fontSize} pt`;
+      if (elements.tfColorInput) elements.tfColorInput.value = currentActiveText.color;
+      if (elements.tfColorPreview) elements.tfColorPreview.style.backgroundColor = currentActiveText.color;
+      updateActiveTextElementStyle();
+      showToast(`Matched resume font: ${base.name} (${base.size}pt)`, 'success');
+    });
+
+    elements.tfBtnSizeDec?.addEventListener('click', () => {
+      if (!currentActiveText) return;
+      currentActiveText.fontSize = Math.max(8, (currentActiveText.fontSize || 11) - 1);
+      if (elements.tfFontSizeVal) elements.tfFontSizeVal.textContent = `${currentActiveText.fontSize} pt`;
+      updateActiveTextElementStyle();
+    });
+
+    elements.tfBtnSizeInc?.addEventListener('click', () => {
+      if (!currentActiveText) return;
+      currentActiveText.fontSize = Math.min(48, (currentActiveText.fontSize || 11) + 1);
+      if (elements.tfFontSizeVal) elements.tfFontSizeVal.textContent = `${currentActiveText.fontSize} pt`;
+      updateActiveTextElementStyle();
+    });
+
+    elements.tfBtnBold?.addEventListener('click', () => {
+      if (!currentActiveText) return;
+      currentActiveText.fontWeight = currentActiveText.fontWeight === 'bold' ? 'normal' : 'bold';
+      elements.tfBtnBold.classList.toggle('active', currentActiveText.fontWeight === 'bold');
+      updateActiveTextElementStyle();
+    });
+
+    elements.tfBtnItalic?.addEventListener('click', () => {
+      if (!currentActiveText) return;
+      currentActiveText.fontStyle = currentActiveText.fontStyle === 'italic' ? 'normal' : 'italic';
+      elements.tfBtnItalic.classList.toggle('active', currentActiveText.fontStyle === 'italic');
+      updateActiveTextElementStyle();
+    });
+
+    elements.tfBtnAlignLeft?.addEventListener('click', () => {
+      if (!currentActiveText) return;
+      currentActiveText.textAlign = 'left';
+      elements.tfBtnAlignLeft.classList.add('active');
+      elements.tfBtnAlignCenter?.classList.remove('active');
+      updateActiveTextElementStyle();
+    });
+
+    elements.tfBtnAlignCenter?.addEventListener('click', () => {
+      if (!currentActiveText) return;
+      currentActiveText.textAlign = 'center';
+      elements.tfBtnAlignCenter.classList.add('active');
+      elements.tfBtnAlignLeft?.classList.remove('active');
+      updateActiveTextElementStyle();
+    });
+
+    elements.tfColorInput?.addEventListener('input', (e) => {
+      if (!currentActiveText) return;
+      currentActiveText.color = e.target.value;
+      if (elements.tfColorPreview) elements.tfColorPreview.style.backgroundColor = e.target.value;
+      updateActiveTextElementStyle();
+    });
+
+    elements.tfBtnWhiteoutToggle?.addEventListener('click', () => {
+      if (!currentActiveText) return;
+      currentActiveText.isWhiteout = !currentActiveText.isWhiteout;
+      elements.tfBtnWhiteoutToggle.classList.toggle('active', currentActiveText.isWhiteout);
+      updateActiveTextElementStyle();
+      showToast(currentActiveText.isWhiteout ? 'Whiteout cover mask enabled' : 'Transparent background enabled', 'info');
+    });
+
+    elements.tfBtnDuplicate?.addEventListener('click', duplicateActiveText);
+    elements.tfBtnDelete?.addEventListener('click', deleteActiveText);
+
+    // Dismiss bar on outside click
+    window.addEventListener('mousedown', (e) => {
+      if (elements.textFormattingBar && elements.textFormattingBar.style.display !== 'none') {
+        if (!e.target.closest('#textFormattingBar') && !e.target.closest('.cv-text-box') && !e.target.closest('.doc-text-box') && !e.target.closest('.btn-cv-add-text') && !e.target.closest('#btnPdfFloatingAddText')) {
+          hideTextFormattingBar();
+        }
+      }
+    });
+  }
+
+  function selectTextOverlay(id, mode) {
+    let item = null;
+    let selector = '';
+
+    if (mode === 'cv' && window._cvState) {
+      item = window._cvState.textOverlays.find(t => t.id === id);
+      selector = `.cv-text-box[data-id="${id}"]`;
+    } else {
+      item = (state.textOverlays[state.currentPage] || []).find(t => t.id === id);
+      selector = `.doc-text-box[data-id="${id}"]`;
+    }
+
+    if (!item) return;
+
+    document.querySelectorAll('.cv-text-box.selected, .doc-text-box.selected').forEach(el => el.classList.remove('selected'));
+    const boxEl = document.querySelector(selector);
+    if (boxEl) {
+      boxEl.classList.add('selected');
+      showTextFormattingBar(item, boxEl, mode);
+    }
+  }
+
+  // --- CANVAS TEXT DRAWING & WRAPPING HELPERS ---
+  function wrapTextLines(ctx, text, maxWidth) {
+    if (!text) return [];
+    const paragraphs = text.split('\n');
+    const allLines = [];
+
+    for (const para of paragraphs) {
+      if (!para) {
+        allLines.push('');
+        continue;
+      }
+      const words = para.split(' ');
+      let currentLine = '';
+
+      for (const word of words) {
+        const testLine = currentLine ? `${currentLine} ${word}` : word;
+        const testWidth = ctx.measureText(testLine).width;
+        if (testWidth <= maxWidth || !currentLine) {
+          currentLine = testLine;
+        } else {
+          allLines.push(currentLine);
+          currentLine = word;
+        }
+      }
+      if (currentLine) {
+        allLines.push(currentLine);
+      }
+    }
+
+    return allLines;
+  }
+
+  function drawCvTextOverlaysToCanvas(ctx, pageIndex, canvasWidth, pageWidth) {
+    if (!window._cvState) return;
+    const scale = canvasWidth / (pageWidth || 1240);
+    const items = window._cvState.textOverlays.filter(t => t.pageIndex === pageIndex);
+
+    items.forEach(t => {
+      const x = t.x * scale;
+      const y = t.y * scale;
+      const w = t.width * scale;
+      const fontSizePx = Math.round(t.fontSize * 1.333 * scale);
+
+      ctx.save();
+      ctx.font = `${t.fontStyle || 'normal'} ${t.fontWeight || 'normal'} ${fontSizePx}px ${t.fontFamily}`;
+
+      const lines = wrapTextLines(ctx, t.text || '', w - 12 * scale);
+      const lineH = Math.round(fontSizePx * 1.35);
+      const totalH = Math.max(26 * scale, lines.length * lineH + 10 * scale);
+
+      if (t.isWhiteout) {
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(x - 2 * scale, y - 2 * scale, w + 4 * scale, totalH + 4 * scale);
+      }
+
+      ctx.fillStyle = t.color || '#1e293b';
+      ctx.textBaseline = 'top';
+
+      lines.forEach((line, lIdx) => {
+        ctx.fillText(line, x + 4 * scale, y + 4 * scale + lIdx * lineH);
+      });
+
+      ctx.restore();
+    });
+  }
+
+  // --- PDF STUDIO TEXT OVERLAYS ENGINE ---
+  function addPdfTextOverlay(pageNum, normX, normY, customText) {
+    if (!state.textOverlays[pageNum]) state.textOverlays[pageNum] = [];
+    const baseFont = state.resumeFont || {
+      family: 'Helvetica, Arial, sans-serif',
+      name: 'Helvetica',
+      size: 11,
+      color: '#1e293b'
+    };
+
+    const newText = {
+      id: 'pdf_txt_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+      pageNum: pageNum,
+      normX: normX !== undefined ? normX : 0.15,
+      normY: normY !== undefined ? normY : 0.2,
+      normW: 0.35,
+      text: customText || 'Type resume text here...',
+      fontFamily: baseFont.family,
+      fontName: baseFont.name,
+      fontSize: baseFont.size || 11,
+      fontWeight: 'normal',
+      fontStyle: 'normal',
+      color: baseFont.color || '#1e293b',
+      isWhiteout: false
+    };
+
+    state.textOverlays[pageNum].push(newText);
+    renderPdfTextOverlays();
+    selectTextOverlay(newText.id, 'pdf');
+    updatePdfTextBadge();
+    showToast(`Added text using resume font: ${newText.fontName} (${newText.fontSize}pt)`, 'success');
+  }
+
+  function renderPdfTextOverlays() {
+    if (!elements.canvasStage) return;
+    const canvasW = elements.canvasStage.clientWidth;
+    const canvasH = elements.canvasStage.clientHeight;
+    if (!canvasW || !canvasH) return;
+
+    elements.canvasStage.querySelectorAll('.pdf-text-layer').forEach(l => l.remove());
+
+    const textLayer = document.createElement('div');
+    textLayer.className = 'pdf-text-layer';
+    textLayer.style.position = 'absolute';
+    textLayer.style.top = '0';
+    textLayer.style.left = '0';
+    textLayer.style.width = '100%';
+    textLayer.style.height = '100%';
+    textLayer.style.pointerEvents = 'none';
+    textLayer.style.zIndex = '55';
+
+    const items = state.textOverlays[state.currentPage] || [];
+
+    items.forEach(item => {
+      const box = document.createElement('div');
+      box.className = `doc-text-box ${item.isWhiteout ? 'is-whiteout' : ''} ${currentActiveText && currentActiveText.id === item.id ? 'selected' : ''}`;
+      box.dataset.id = item.id;
+      const leftPx = Math.round(item.normX * canvasW);
+      const topPx = Math.round(item.normY * canvasH);
+      const widthPx = Math.round(item.normW * canvasW);
+      box.style.left = `${leftPx}px`;
+      box.style.top = `${topPx}px`;
+      box.style.width = `${widthPx}px`;
+      box.style.pointerEvents = 'auto';
+
+      const handle = document.createElement('div');
+      handle.className = 'doc-text-handle';
+      handle.title = 'Drag to move text on document';
+
+      const content = document.createElement('div');
+      content.className = 'doc-text-content';
+      content.contentEditable = 'true';
+      content.innerText = item.text || '';
+      content.style.fontFamily = item.fontFamily;
+      content.style.fontSize = `${Math.round(item.fontSize * (state.currentScale || 1.0))}px`;
+      content.style.fontWeight = item.fontWeight;
+      content.style.fontStyle = item.fontStyle;
+      content.style.color = item.color;
+      content.style.textAlign = item.textAlign || 'left';
+
+      const resize = document.createElement('div');
+      resize.className = 'doc-text-resize';
+      resize.title = 'Drag to resize width';
+
+      box.appendChild(handle);
+      box.appendChild(content);
+      box.appendChild(resize);
+      textLayer.appendChild(box);
+
+      content.addEventListener('input', () => {
+        item.text = content.innerText;
+      });
+
+      function startTextDrag(e) {
+        if (e.target === content && document.activeElement === content) return;
+        if (e.target === resize) return;
+        e.preventDefault();
+        e.stopPropagation();
+        selectTextOverlay(item.id, 'pdf');
+
+        const startMouseX = e.clientX;
+        const startMouseY = e.clientY;
+        const startNormX = item.normX;
+        const startNormY = item.normY;
+
+        function onMouseMove(moveEvent) {
+          const dx = (moveEvent.clientX - startMouseX) / canvasW;
+          const dy = (moveEvent.clientY - startMouseY) / canvasH;
+          item.normX = Math.max(0, Math.min(0.95, startNormX + dx));
+          item.normY = Math.max(0, Math.min(0.98, startNormY + dy));
+          box.style.left = `${Math.round(item.normX * canvasW)}px`;
+          box.style.top = `${Math.round(item.normY * canvasH)}px`;
+          showTextFormattingBar(item, box, 'pdf');
+        }
+
+        function onMouseUp() {
+          window.removeEventListener('mousemove', onMouseMove);
+          window.removeEventListener('mouseup', onMouseUp);
+        }
+
+        window.addEventListener('mousemove', onMouseMove);
+        window.addEventListener('mouseup', onMouseUp);
+      }
+
+      handle.addEventListener('mousedown', startTextDrag);
+      box.addEventListener('mousedown', (e) => {
+        if (e.target === content) {
+          selectTextOverlay(item.id, 'pdf');
+          return;
+        }
+        startTextDrag(e);
+      });
+
+      resize.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const startMouseX = e.clientX;
+        const startNormW = item.normW;
+
+        function onMouseMove(moveEvent) {
+          const dw = (moveEvent.clientX - startMouseX) / canvasW;
+          item.normW = Math.max(0.1, Math.min(0.95 - item.normX, startNormW + dw));
+          box.style.width = `${Math.round(item.normW * canvasW)}px`;
+          showTextFormattingBar(item, box, 'pdf');
+        }
+
+        function onMouseUp() {
+          window.removeEventListener('mousemove', onMouseMove);
+          window.removeEventListener('mouseup', onMouseUp);
+        }
+
+        window.addEventListener('mousemove', onMouseMove);
+        window.addEventListener('mouseup', onMouseUp);
+      });
+    });
+
+    elements.canvasStage.appendChild(textLayer);
+    renderPdfTextList();
+  }
+
+  function updatePdfTextBadge() {
+    const items = state.textOverlays[state.currentPage] || [];
+    if (elements.pdfTextCountBadge) {
+      elements.pdfTextCountBadge.textContent = `${items.length} item${items.length === 1 ? '' : 's'}`;
+    }
+    if (elements.btnExportAnnotatedPDF) {
+      const allText = Object.values(state.textOverlays).flat();
+      elements.btnExportAnnotatedPDF.disabled = allText.length === 0;
+    }
+  }
+
+  function renderPdfTextList() {
+    if (!elements.pdfTextListContainer) return;
+    const items = state.textOverlays[state.currentPage] || [];
+    elements.pdfTextListContainer.innerHTML = '';
+
+    if (items.length === 0) {
+      elements.pdfTextListContainer.innerHTML = '<div class="empty-hint" id="noPdfTextHint">No text added to this page yet. Click "+ Add Text to Current Page" or double-click anywhere on page.</div>';
+      return;
+    }
+
+    items.forEach((item, idx) => {
+      const row = document.createElement('div');
+      row.className = 'redact-item-row';
+      row.innerHTML = `
+        <div class="redact-item-info">
+          <strong>#${idx + 1} "${(item.text || '').substring(0, 22)}${(item.text || '').length > 22 ? '...' : ''}"</strong>
+          <span class="badge-dim">${item.fontName} ${item.fontSize}pt</span>
+        </div>
+        <button class="icon-btn icon-btn-sm btn-delete-text" title="Delete text box">
+          <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" stroke-width="2" fill="none"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      `;
+
+      row.querySelector('.btn-delete-text').addEventListener('click', () => {
+        state.textOverlays[state.currentPage] = state.textOverlays[state.currentPage].filter(t => t.id !== item.id);
+        renderPdfTextOverlays();
+        updatePdfTextBadge();
+        hideTextFormattingBar();
+        showToast('Text box deleted', 'info');
+      });
+
+      row.addEventListener('click', (e) => {
+        if (e.target.closest('.btn-delete-text')) return;
+        selectTextOverlay(item.id, 'pdf');
+      });
+
+      elements.pdfTextListContainer.appendChild(row);
+    });
+  }
+
+  async function exportAnnotatedPDF() {
+    if (!state.pdfBytes) return;
+    const allText = Object.values(state.textOverlays).flat();
+    if (allText.length === 0) {
+      showToast('No text annotations added yet', 'info');
+      return;
+    }
+
+    try {
+      showToast('Embedding vector text into PDF...', 'info');
+      const { PDFDocument, rgb, StandardFonts } = window.PDFLib;
+      const doc = await PDFDocument.load(state.pdfBytes);
+
+      const fontHelvetica = await doc.embedFont(StandardFonts.Helvetica);
+      const fontHelveticaBold = await doc.embedFont(StandardFonts.HelveticaBold);
+      const fontTimes = await doc.embedFont(StandardFonts.TimesRoman);
+      const fontTimesBold = await doc.embedFont(StandardFonts.TimesRomanBold);
+      const fontCourier = await doc.embedFont(StandardFonts.Courier);
+      const fontCourierBold = await doc.embedFont(StandardFonts.CourierBold);
+
+      for (const [pageNumStr, items] of Object.entries(state.textOverlays)) {
+        const pageIdx = parseInt(pageNumStr, 10) - 1;
+        if (pageIdx < 0 || pageIdx >= doc.getPageCount()) continue;
+        const page = doc.getPage(pageIdx);
+
+        // Exact page cropbox/mediabox
+        const cropBox = page.getCropBox() || page.getMediaBox();
+        const pageX = cropBox.x || 0;
+        const pageY = cropBox.y || 0;
+        const pW = cropBox.width || page.getWidth();
+        const pH = cropBox.height || page.getHeight();
+
+        // Exact canvas scaling
+        const canvasW = elements.canvasStage ? elements.canvasStage.clientWidth : (pW * (state.currentScale || 1.0));
+        const canvasH = elements.canvasStage ? elements.canvasStage.clientHeight : (pH * (state.currentScale || 1.0));
+        const scaleX = canvasW / pW;
+        const scaleY = canvasH / pH;
+
+        // Exact CSS padding mapped to PDF points
+        const padX = 4 / scaleX;
+        const padY = 2 / scaleY;
+
+        items.forEach(item => {
+          if (!item.text || !item.text.trim()) return;
+          const fontSize = Math.max(6, item.fontSize);
+          const isSerif = (item.fontFamily || '').toLowerCase().includes('times') || 
+                          (item.fontFamily || '').toLowerCase().includes('garamond') || 
+                          (item.fontFamily || '').toLowerCase().includes('georgia');
+          const isMono = (item.fontFamily || '').toLowerCase().includes('mono') || 
+                         (item.fontFamily || '').toLowerCase().includes('courier');
+          const isBold = item.fontWeight === 'bold';
+          
+          let font;
+          if (isMono) {
+            font = isBold ? fontCourierBold : fontCourier;
+          } else if (isSerif) {
+            font = isBold ? fontTimesBold : fontTimes;
+          } else {
+            font = isBold ? fontHelveticaBold : fontHelvetica;
+          }
+
+          const hex = (item.color || '#1e293b').replace('#', '');
+          const r = parseInt(hex.substr(0, 2), 16) / 255 || 0;
+          const g = parseInt(hex.substr(2, 2), 16) / 255 || 0;
+          const b = parseInt(hex.substr(4, 2), 16) / 255 || 0;
+
+          const lines = item.text.split('\n');
+          const lineH = fontSize * 1.25;
+          const capHeight = fontSize * 0.76;
+          const totalTextH = lines.length * lineH;
+          const rectW = Math.max(30, item.normW * pW);
+          const rectH = totalTextH + (padY * 2);
+
+          // Top edge of the text box in PDF points (measuring from bottom of page)
+          const boxTopInPdf = pageY + (1 - item.normY) * pH;
+          const boxLeftInPdf = pageX + item.normX * pW;
+
+          if (item.isWhiteout) {
+            page.drawRectangle({
+              x: boxLeftInPdf,
+              y: boxTopInPdf - rectH,
+              width: rectW,
+              height: rectH,
+              color: rgb(1, 1, 1)
+            });
+          }
+
+          lines.forEach((line, lIdx) => {
+            const lineWidth = font.widthOfTextAtSize(line, fontSize);
+            let alignOffset = padX;
+            if (item.textAlign === 'center') {
+              alignOffset = Math.max(padX, (rectW - lineWidth) / 2);
+            } else if (item.textAlign === 'right') {
+              alignOffset = Math.max(padX, rectW - lineWidth - padX);
+            }
+
+            const lineX = boxLeftInPdf + alignOffset;
+            const lineY = boxTopInPdf - padY - capHeight - (lIdx * lineH);
+
+            page.drawText(line, {
+              x: lineX,
+              y: lineY,
+              size: fontSize,
+              font: font,
+              color: rgb(r, g, b)
+            });
+          });
+        });
+      }
+
+      const pdfBytes = await doc.save();
+      const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const baseName = state.fileName.replace(/\.pdf$/i, '');
+      a.href = url;
+      a.download = `${baseName}_with_text.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      showToast('Annotated PDF exported successfully!', 'success');
+    } catch (err) {
+      console.error('PDF export error:', err);
+      showToast('Error exporting annotated PDF: ' + err.message, 'info');
+    }
+  }
+
+  // ==========================================================================
   // CV SCREENSHOT COMPILER MODULE
   // ==========================================================================
   function setupCvCompiler() {
@@ -1578,6 +2448,15 @@ if (window.pdfjsLib) {
       whiteSensitivity: 2, // 1 to 4
       enhanceContrast: true,
       zoom: 0.8,
+      resumeFont: {
+        family: 'Inter, sans-serif',
+        name: 'Inter',
+        size: 11,
+        color: '#1e293b',
+        pdfStandard: 'Helvetica',
+        weight: 'normal'
+      },
+      textOverlays: [],
       activeTrimSliceId: null,
       activeTrimState: { top: 0, bottom: 0, left: 0, right: 0 },
       dragSrcIndex: null,
@@ -1587,6 +2466,175 @@ if (window.pdfjsLib) {
       captureStartX: 0,
       captureStartY: 0
     };
+
+    window._cvState = cvState;
+
+    // CV Text Overlay Functions
+    function addCvTextOverlay(pageIndex, x, y, customText) {
+      const baseFont = cvState.resumeFont || state.resumeFont || {
+        family: 'Inter, sans-serif',
+        name: 'Inter',
+        size: 11,
+        color: '#1e293b'
+      };
+
+      const newText = {
+        id: 'cv_txt_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+        pageIndex: pageIndex || 0,
+        x: x !== undefined ? x : 120,
+        y: y !== undefined ? y : 140,
+        width: 320,
+        text: customText || 'Type resume text here...',
+        fontFamily: baseFont.family,
+        fontName: baseFont.name,
+        fontSize: baseFont.size || 11,
+        fontWeight: 'normal',
+        fontStyle: 'normal',
+        color: baseFont.color || '#1e293b',
+        isWhiteout: false
+      };
+
+      cvState.textOverlays.push(newText);
+      renderCvTextOverlays();
+      selectTextOverlay(newText.id, 'cv');
+      updateCvTextBadge();
+      showToast(`Added text using resume font: ${newText.fontName} (${newText.fontSize}pt)`, 'success');
+    }
+
+    function renderCvTextOverlays() {
+      if (!elements.cvPagesWrapper) return;
+      const pageEls = elements.cvPagesWrapper.querySelectorAll('.cv-paper-page');
+      if (pageEls.length === 0) return;
+
+      elements.cvPagesWrapper.querySelectorAll('.cv-text-layer').forEach(l => l.remove());
+
+      pageEls.forEach((pageEl, pIdx) => {
+        const textLayer = document.createElement('div');
+        textLayer.className = 'cv-text-layer';
+        textLayer.style.position = 'absolute';
+        textLayer.style.top = '0';
+        textLayer.style.left = '0';
+        textLayer.style.width = '100%';
+        textLayer.style.height = '100%';
+        textLayer.style.pointerEvents = 'none';
+        textLayer.style.zIndex = '50';
+
+        const items = cvState.textOverlays.filter(t => t.pageIndex === pIdx);
+
+        items.forEach(item => {
+          const box = document.createElement('div');
+          box.className = `cv-text-box ${item.isWhiteout ? 'is-whiteout' : ''} ${currentActiveText && currentActiveText.id === item.id ? 'selected' : ''}`;
+          box.dataset.id = item.id;
+          box.style.left = `${item.x}px`;
+          box.style.top = `${item.y}px`;
+          box.style.width = `${item.width}px`;
+          box.style.pointerEvents = 'auto';
+
+          const handle = document.createElement('div');
+          handle.className = 'cv-text-handle';
+          handle.title = 'Drag to move text on resume';
+
+          const content = document.createElement('div');
+          content.className = 'cv-text-content';
+          content.contentEditable = 'true';
+          content.innerText = item.text || '';
+          content.style.fontFamily = item.fontFamily;
+          content.style.fontSize = `${Math.round(item.fontSize * 1.333)}px`;
+          content.style.fontWeight = item.fontWeight;
+          content.style.fontStyle = item.fontStyle;
+          content.style.color = item.color;
+
+          const resize = document.createElement('div');
+          resize.className = 'cv-text-resize';
+          resize.title = 'Drag to resize width';
+
+          box.appendChild(handle);
+          box.appendChild(content);
+          box.appendChild(resize);
+          textLayer.appendChild(box);
+
+          box.addEventListener('mousedown', (e) => {
+            e.stopPropagation();
+            selectTextOverlay(item.id, 'cv');
+          });
+
+          content.addEventListener('input', () => {
+            item.text = content.innerText;
+          });
+
+          handle.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            selectTextOverlay(item.id, 'cv');
+
+            const startMouseX = e.clientX;
+            const startMouseY = e.clientY;
+            const startItemX = item.x;
+            const startItemY = item.y;
+            const zoom = cvState.zoom || 0.8;
+
+            function onMouseMove(moveEvent) {
+              const dx = (moveEvent.clientX - startMouseX) / zoom;
+              const dy = (moveEvent.clientY - startMouseY) / zoom;
+              item.x = Math.max(0, Math.round(startItemX + dx));
+              item.y = Math.max(0, Math.round(startItemY + dy));
+              box.style.left = `${item.x}px`;
+              box.style.top = `${item.y}px`;
+              showTextFormattingBar(item, box, 'cv');
+            }
+
+            function onMouseUp() {
+              window.removeEventListener('mousemove', onMouseMove);
+              window.removeEventListener('mouseup', onMouseUp);
+            }
+
+            window.addEventListener('mousemove', onMouseMove);
+            window.addEventListener('mouseup', onMouseUp);
+          });
+
+          resize.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const startMouseX = e.clientX;
+            const startWidth = item.width;
+            const zoom = cvState.zoom || 0.8;
+
+            function onMouseMove(moveEvent) {
+              const dx = (moveEvent.clientX - startMouseX) / zoom;
+              item.width = Math.max(80, Math.round(startWidth + dx));
+              box.style.width = `${item.width}px`;
+              showTextFormattingBar(item, box, 'cv');
+            }
+
+            function onMouseUp() {
+              window.removeEventListener('mousemove', onMouseMove);
+              window.removeEventListener('mouseup', onMouseUp);
+            }
+
+            window.addEventListener('mousemove', onMouseMove);
+            window.addEventListener('mouseup', onMouseUp);
+          });
+        });
+
+        pageEl.appendChild(textLayer);
+
+        pageEl.ondblclick = (e) => {
+          if (e.target.closest('.cv-text-box')) return;
+          const rect = pageEl.getBoundingClientRect();
+          const zoom = cvState.zoom || 0.8;
+          const clickX = Math.round((e.clientX - rect.left) / zoom);
+          const clickY = Math.round((e.clientY - rect.top) / zoom);
+          addCvTextOverlay(pIdx, clickX, clickY);
+        };
+      });
+    }
+
+    function updateCvTextBadge() {
+      const count = cvState.textOverlays.length;
+      if (elements.cvTextOverlayCountBadge) {
+        elements.cvTextOverlayCountBadge.textContent = `${count} added`;
+      }
+    }
 
     // Mode Switcher Navigation
     function switchToMode(mode) {
@@ -1599,6 +2647,14 @@ if (window.pdfjsLib) {
         if (state.pdfDoc) {
           elements.docMeta.style.display = 'flex';
           elements.headerPageNav.style.display = 'flex';
+          elements.emptyDropzone.style.display = 'none';
+          elements.canvasWorkspace.style.display = 'flex';
+          elements.panelInspector.style.display = 'flex';
+          elements.sidebarThumbnails.style.display = 'flex';
+          renderPage(state.currentPage);
+        } else {
+          elements.emptyDropzone.style.display = 'flex';
+          elements.canvasWorkspace.style.display = 'none';
         }
       } else {
         elements.navBtnCvCompiler?.classList.add('active');
@@ -1611,6 +2667,44 @@ if (window.pdfjsLib) {
         renderCompiledCV();
       }
     }
+
+    window._switchToMode = switchToMode;
+
+    // Direct helper to import pages from the opened PDF into CV slices
+    async function importPdfPagesAsCvSlices() {
+      if (!state.pdfDoc) {
+        showToast('Please open a PDF first.', 'info');
+        return;
+      }
+      showToast('Importing PDF pages into CV Compiler...', 'info');
+      try {
+        const numPages = state.pdfDoc.numPages;
+        for (let i = 1; i <= numPages; i++) {
+          const page = await state.pdfDoc.getPage(i);
+          const viewport = page.getViewport({ scale: 2.0 });
+          const offscreen = document.createElement('canvas');
+          offscreen.width = viewport.width;
+          offscreen.height = viewport.height;
+          const ctx = offscreen.getContext('2d');
+          await page.render({ canvasContext: ctx, viewport }).promise;
+          
+          await new Promise((resolve) => {
+            const img = new Image();
+            img.onload = () => {
+              addCvSlice(img, `${state.fileName ? state.fileName.replace('.pdf', '') : 'Resume'} Page ${i}`);
+              resolve();
+            };
+            img.src = offscreen.toDataURL('image/png');
+          });
+        }
+        switchToMode('cv');
+        showToast(`Imported ${numPages} page(s) into CV Compiler!`, 'success');
+      } catch (err) {
+        console.error('Failed to import PDF pages:', err);
+        showToast('Failed to import PDF pages: ' + err.message, 'info');
+      }
+    }
+    window._importPdfPagesAsCvSlices = importPdfPagesAsCvSlices;
 
     elements.navBtnPdfStudio?.addEventListener('click', () => switchToMode('pdf'));
     elements.navBtnCvCompiler?.addEventListener('click', () => switchToMode('cv'));
@@ -2089,6 +3183,9 @@ if (window.pdfjsLib) {
           const img3 = new Image();
           img3.onload = () => {
             addCvSlice(img3, 'Skills & Education');
+            cvState.resumeFont = { family: 'Inter, sans-serif', name: 'Inter', size: 11, color: '#1e293b', weight: 'normal', pdfStandard: 'Helvetica' };
+            updateResumeFontUI();
+            updateCvTextBadge();
             switchToMode('cv');
             showToast('Loaded 3 sample CV screenshot slices!', 'success');
           };
@@ -2460,7 +3557,48 @@ if (window.pdfjsLib) {
       if (cvState.slices.length === 0) {
         // Keep welcome card visible
         wrapper.querySelectorAll('.cv-paper-page').forEach(p => p.remove());
-        if (elements.cvWelcomeCard) elements.cvWelcomeCard.style.display = 'flex';
+        if (elements.cvWelcomeCard) {
+          elements.cvWelcomeCard.style.display = 'flex';
+          let alertBanner = elements.cvWelcomeCard.querySelector('#cvPdfLoadedAlert');
+          if (state.pdfDoc) {
+            if (!alertBanner) {
+              alertBanner = document.createElement('div');
+              alertBanner.id = 'cvPdfLoadedAlert';
+              alertBanner.className = 'cv-pdf-loaded-alert';
+              const actionsDiv = elements.cvWelcomeCard.querySelector('.dropzone-actions');
+              if (actionsDiv) {
+                elements.cvWelcomeCard.insertBefore(alertBanner, actionsDiv);
+              } else {
+                elements.cvWelcomeCard.appendChild(alertBanner);
+              }
+            }
+            alertBanner.innerHTML = `
+              <div class="alert-content">
+                <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                <div>
+                  <strong>PDF Resume Loaded:</strong> <span>${state.fileName || 'document.pdf'}</span> (${state.totalPages || 1} pages)
+                </div>
+              </div>
+              <div class="alert-actions">
+                <button type="button" class="btn btn-primary btn-sm" id="btnCvSwitchToPdfStudio">
+                  👁️ Open in PDF Studio
+                </button>
+                <button type="button" class="btn btn-secondary btn-sm" id="btnCvImportPdfPages">
+                  📥 Import Pages as CV Slices
+                </button>
+              </div>
+            `;
+            alertBanner.querySelector('#btnCvSwitchToPdfStudio')?.addEventListener('click', () => {
+              if (window._switchToMode) window._switchToMode('pdf');
+            });
+            alertBanner.querySelector('#btnCvImportPdfPages')?.addEventListener('click', () => {
+              if (window._importPdfPagesAsCvSlices) window._importPdfPagesAsCvSlices();
+            });
+            alertBanner.style.display = 'flex';
+          } else if (alertBanner) {
+            alertBanner.style.display = 'none';
+          }
+        }
         if (statBadge) statBadge.textContent = '0 Slices • Ready to Compile';
         setCvExportButtonsEnabled(false);
         return;
@@ -2624,6 +3762,10 @@ if (window.pdfjsLib) {
         }
       }
 
+      // Render interactive text overlays on CV pages
+      renderCvTextOverlays();
+      updateCvTextBadge();
+
       // Apply Zoom scaling
       wrapper.style.transform = `scale(${cvState.zoom})`;
       setCvExportButtonsEnabled(true);
@@ -2736,7 +3878,14 @@ if (window.pdfjsLib) {
 
         for (let i = 0; i < pageCanvases.length; i++) {
           const canvas = pageCanvases[i];
-          const pngDataUrl = canvas.toDataURL('image/png');
+          const exportCanvas = document.createElement('canvas');
+          exportCanvas.width = canvas.width;
+          exportCanvas.height = canvas.height;
+          const eCtx = exportCanvas.getContext('2d');
+          eCtx.drawImage(canvas, 0, 0);
+          drawCvTextOverlaysToCanvas(eCtx, i, canvas.width, canvas.offsetWidth || canvas.width);
+
+          const pngDataUrl = exportCanvas.toDataURL('image/png');
           const pngImage = await pdfDoc.embedPng(pngDataUrl);
 
           // Standard dimensions in PDF points (72 DPI)
@@ -2769,7 +3918,7 @@ if (window.pdfjsLib) {
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
 
-        showToast('Compiled CV PDF exported successfully!', 'success');
+        showToast('Compiled CV PDF exported successfully with text!', 'success');
       } catch (err) {
         console.error('PDF export error:', err);
         showToast('Error exporting PDF: ' + err.message, 'info');
@@ -2784,14 +3933,21 @@ if (window.pdfjsLib) {
       if (pageCanvases.length === 0) return;
 
       if (pageCanvases.length === 1) {
-        const url = pageCanvases[0].toDataURL('image/png');
+        const expCanvas = document.createElement('canvas');
+        expCanvas.width = pageCanvases[0].width;
+        expCanvas.height = pageCanvases[0].height;
+        const eCtx = expCanvas.getContext('2d');
+        eCtx.drawImage(pageCanvases[0], 0, 0);
+        drawCvTextOverlaysToCanvas(eCtx, 0, pageCanvases[0].width, pageCanvases[0].offsetWidth || pageCanvases[0].width);
+
+        const url = expCanvas.toDataURL('image/png');
         const a = document.createElement('a');
         a.href = url;
         a.download = 'Compiled_CV.png';
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
-        showToast('CV PNG saved!', 'success');
+        showToast('CV PNG saved with text!', 'success');
       } else {
         // Stitch pages vertically into one high-res PNG
         let totalW = pageCanvases[0].width;
@@ -2806,8 +3962,15 @@ if (window.pdfjsLib) {
         mCtx.fillRect(0, 0, totalW, totalH);
 
         let currY = 0;
-        pageCanvases.forEach(c => {
-          mCtx.drawImage(c, 0, currY);
+        pageCanvases.forEach((c, idx) => {
+          const expCanvas = document.createElement('canvas');
+          expCanvas.width = c.width;
+          expCanvas.height = c.height;
+          const eCtx = expCanvas.getContext('2d');
+          eCtx.drawImage(c, 0, 0);
+          drawCvTextOverlaysToCanvas(eCtx, idx, c.width, c.offsetWidth || c.width);
+
+          mCtx.drawImage(expCanvas, 0, currY);
           currY += c.height + 20;
         });
 
@@ -2831,11 +3994,18 @@ if (window.pdfjsLib) {
 
       try {
         const canvas = pageCanvases[0];
-        canvas.toBlob(async (blob) => {
+        const expCanvas = document.createElement('canvas');
+        expCanvas.width = canvas.width;
+        expCanvas.height = canvas.height;
+        const eCtx = expCanvas.getContext('2d');
+        eCtx.drawImage(canvas, 0, 0);
+        drawCvTextOverlaysToCanvas(eCtx, 0, canvas.width, canvas.offsetWidth || canvas.width);
+
+        expCanvas.toBlob(async (blob) => {
           if (!blob) return;
           try {
             await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-            showToast('Compiled CV copied to clipboard!', 'success');
+            showToast('Compiled CV copied to clipboard with text!', 'success');
           } catch (clipErr) {
             console.error('Clipboard copy error:', clipErr);
             showToast('Failed to copy to clipboard directly.', 'info');
@@ -2847,6 +4017,29 @@ if (window.pdfjsLib) {
     }
 
     elements.btnCopyCvClipboard?.addEventListener('click', copyCompiledCvToClipboard);
+
+    // CV Text Buttons Listeners
+    elements.btnCvAddText?.addEventListener('click', () => {
+      addCvTextOverlay(0);
+    });
+    elements.btnCvInspectorAddText?.addEventListener('click', () => {
+      addCvTextOverlay(0);
+    });
+    elements.btnCvResetBaseFont?.addEventListener('click', () => {
+      cvState.resumeFont = { ...state.resumeFont };
+      updateResumeFontUI();
+      showToast(`Matched resume font: ${cvState.resumeFont.name}`, 'success');
+    });
+    elements.btnCvClearAllText?.addEventListener('click', () => {
+      if (cvState.textOverlays.length === 0) return;
+      if (confirm('Clear all text additions from resume?')) {
+        cvState.textOverlays = [];
+        renderCvTextOverlays();
+        hideTextFormattingBar();
+        updateCvTextBadge();
+        showToast('All text boxes cleared', 'info');
+      }
+    });
 
     // 4. Print
     elements.btnPrintCv?.addEventListener('click', () => {

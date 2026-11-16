@@ -26,6 +26,13 @@ CropPDF Studio is a high-performance, private, in-browser document workbench. It
 * **Permanent Cut-Out / Redaction**: Erase or black out unwanted watermarks, stamps, or sensitive data.
 * **Cross-Tool Synergy**: Send any cropped section of an existing PDF directly into the CV Compiler queue with one click.
 
+### 3. ✍️ Typography & Text Additions
+* **Resume Font Copier**: Analyzes document vector typography to detect dominant font family, body size, and color to auto-match new text.
+* **Interactive Text Boxes**: Click or double-click to drop draggable, resizable text annotations anywhere on the PDF page or CV sheets.
+* **Floating Text Formatting Bar**: Choose from curated fonts (*Inter*, *Arial*, *Calibri*, *Times New Roman*, *EB Garamond*, *Georgia*, *Roboto*), adjust size, bold, italic, text alignment, and custom color.
+* **Cover Mask / Whiteout Toggle**: Opaque white background to easily replace existing dates, company names, or typos.
+* **Vector PDF Embedding**: Embeds vector fonts into the final PDF output losslessly using `pdf-lib`.
+
 ---
 
 ## 🚀 Quick Start
